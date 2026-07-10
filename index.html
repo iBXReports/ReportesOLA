@@ -564,7 +564,7 @@
     // =========================================================================
     // 🔴 IMPORTANTE: PEGA AQUÍ LA URL DE TU WEB APP DE GOOGLE 🔴
     // =========================================================================
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxtez1DVq_4IERovfzH4oCLIuS67uvTNaYSpf4HHDviOH8PxsVuAIhzbocAfPxW-6sE/exec"; 
+    const GAS_URL = "PEGA_TU_URL_AQUI"; 
     // =========================================================================
 
     // ── Estado global ──────────────────────────────────────────
@@ -845,4 +845,280 @@
       } else {
         txt += "❌ NO REQUIEREN ASISTENCIA\n";
         if (noReq.length) noReq.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - ATENDIDO POR: ${p.agente||'SIN ASIGNAR'}\n`; });
-        else
+        else txt += "-SIN PAX-\n";
+      }
+
+      txt += `\n🛎️ LIST@ PARA PROXIMAS ASIGNACIONES!`;
+      return txt;
+    }
+
+    async function sendFormToServer() {
+      const aerolinea = document.getElementById('aerolinea').value;
+      const vuelo = document.getElementById('vuelo').value.trim().toUpperCase();
+      if (!aerolinea || !vuelo) { alert("Por favor complete los campos obligatorios del vuelo."); return; }
+      let agentesArray = [];
+      document.querySelectorAll('.agent-input-name').forEach(inp => { const v = inp.value.trim().toUpperCase(); if (v) agentesArray.push(v); });
+      if (!agentesArray.length) { alert("Por favor ingrese al menos un agente."); return; }
+      let validado = true, listaPasajeros = [], totalAsist = 0;
+      document.querySelectorAll('.pax-row').forEach(row => {
+        const nombre = row.querySelector('.pax-name').value.trim().toUpperCase();
+        const service = row.querySelector('.pax-service').value;
+        const status  = row.querySelector('.pax-status').value;
+        const agente  = row.querySelector('.pax-agent-select').value;
+        if (nombre) { if (!agente) validado = false; listaPasajeros.push({ nombre, asistencia: service, estado: status, agente }); if (status === "PAX ASISTIDO") totalAsist++; }
+      });
+      if (!validado) { alert("Por favor, asigne qué agente atendió a cada pasajero."); return; }
+      
+      const btn = document.getElementById('btn-submit');
+      btn.textContent = "Guardando en la nube..."; btn.disabled = true;
+      
+      const payload = {
+        tipoOperacion: document.getElementById('tipoOperacion').value, aerolinea, vuelo,
+        etaEtd:      document.getElementById('etaEtd').value,
+        puerta:      document.getElementById('puerta').value.toUpperCase(),
+        horaInicio:  document.getElementById('horaInicio').value,
+        horaTermino: document.getElementById('horaTermino').value,
+        totalAsistencias: totalAsist, agentes: agentesArray.join(" - "), pasajeros: listaPasajeros
+      };
+      
+      try {
+        const res = await fetchAPI('salvarRegistro', { datos: payload });
+        if (res.success) {
+          document.getElementById('consolidadoTextArea').value = generateConsolidadoTexto(payload);
+          document.getElementById('consolidadoModal').classList.add('active');
+          document.getElementById('mainForm').reset();
+          document.getElementById('pax-container').innerHTML = "";
+          document.getElementById('agents-list-container').innerHTML = "";
+          addAgentField(); addPassengerRow();
+        } else { alert(res.msg); }
+      } catch(e) {
+        alert("Error de conexión al guardar el registro.");
+      }
+      btn.textContent = "💾 Guardar Registro General"; btn.disabled = false;
+    }
+    
+    function copyConsolidadoText() {
+      const ta = document.getElementById('consolidadoTextArea');
+      ta.select(); navigator.clipboard.writeText(ta.value).then(() => { alert("¡Reporte copiado con éxito!"); });
+    }
+    function closeModal() { document.getElementById('consolidadoModal').classList.remove('active'); }
+
+    // ── Exportar a Excel / Respaldo ─────────────────────────────
+    async function downloadBackup() {
+      try {
+        const resAirlines = await fetchAPI('getAirlines');
+        const resRecords = await fetchAPI('obtenerRegistros', { password: authenticatedPass });
+        if(resRecords.error) { alert(resRecords.error); return; }
+
+        const payload = {
+          generatedAt: new Date().toISOString(),
+          airlines: resAirlines,
+          records: resRecords.data
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        const dt = new Date();
+        const stamp = `${String(dt.getDate()).padStart(2, '0')}-${String(dt.getMonth() + 1).padStart(2, '0')}-${dt.getFullYear()}`;
+        link.href = URL.createObjectURL(blob);
+        link.download = "Respaldo_CMOB_Completo_" + stamp + ".json";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+      } catch (e) { alert("No se pudo descargar el respaldo: " + e.message); }
+    }
+    
+    function toggleExportInputs() {
+      const tipo = document.getElementById('export-tipo').value;
+      document.getElementById('export-input-dia').style.display = (tipo === 'dia') ? '' : 'none';
+      document.getElementById('export-input-rango-inicio').style.display = (tipo === 'rango') ? '' : 'none';
+      document.getElementById('export-input-rango-fin').style.display = (tipo === 'rango') ? '' : 'none';
+      document.getElementById('export-input-mes').style.display = (tipo === 'mes') ? '' : 'none';
+      document.getElementById('export-input-anio').style.display = (tipo === 'anio') ? '' : 'none';
+    }
+    
+    async function exportToExcel() {
+      const tipo = document.getElementById('export-tipo').value;
+      const filtro = { tipo };
+      if (tipo === 'dia') {
+        filtro.fecha = document.getElementById('export-fecha').value;
+        if (!filtro.fecha) { alert("Seleccione una fecha."); return; }
+      } else if (tipo === 'rango') {
+        filtro.fechaInicio = document.getElementById('export-fecha-inicio').value;
+        filtro.fechaFin = document.getElementById('export-fecha-fin').value;
+        if (!filtro.fechaInicio || !filtro.fechaFin) { alert("Seleccione el rango de fechas completo."); return; }
+      } else if (tipo === 'mes') {
+        filtro.mes = document.getElementById('export-mes').value;
+        if (!filtro.mes) { alert("Seleccione un mes."); return; }
+      } else if (tipo === 'anio') {
+        filtro.anio = document.getElementById('export-anio').value;
+        if (!filtro.anio) { alert("Ingrese un año."); return; }
+      }
+      
+      const btn = document.getElementById('btn-export-excel');
+      const originalText = btn.textContent;
+      btn.textContent = "⏳ Generando archivo..."; btn.disabled = true;
+
+      try {
+        const res = await fetchAPI('exportarRegistros', { password: authenticatedPass, filtro: filtro });
+        btn.textContent = originalText; btn.disabled = false;
+        
+        if (!res.success) { alert(res.msg || "No se pudo generar el archivo."); return; }
+        
+        const byteChars = atob(res.base64);
+        const byteNumbers = new Array(byteChars.length);
+        for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = res.filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(link.href), 3000);
+      } catch (err) {
+        btn.textContent = originalText; btn.disabled = false;
+        alert("Error al exportar. Compruebe su conexión.");
+      }
+    }
+
+    // ── Tabla Admin ────────────────────────────────────────────
+    async function fetchExcelRecords(silent) {
+      if (!silent) {
+        document.getElementById('tableBody').innerHTML =
+          '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">⏳ Sincronizando base de datos...</td></tr>';
+      }
+      
+      try {
+        const res = await fetchAPI('obtenerRegistros', { password: authenticatedPass });
+        
+        if (res.error) { stopAdminPolling(); alert(res.error); switchView('login'); return; }
+        const data = res.data;
+        if (!data || data.length < 1) {
+          allRecords = []; filteredRecords = [];
+          tableHeadersData = REPORT_HEADERS;
+          renderHeaders();
+          document.getElementById('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--text-muted);">No se encontraron registros.</td></tr>';
+          document.getElementById('paginationInfo').textContent = "Sin registros";
+          document.getElementById('paginationControls').innerHTML = "";
+          return;
+        }
+        const primeraCelda = (data[0][0] || '').toString().trim().toUpperCase();
+        const tieneCabecera = primeraCelda === 'FECHA REGISTRO';
+        tableHeadersData = tieneCabecera ? data[0] : REPORT_HEADERS;
+        const filas = tieneCabecera ? data.slice(1) : data;
+        allRecords = filas.slice().reverse();
+        renderHeaders();
+
+        const hasFilter = document.getElementById('filter-date').value
+          || document.getElementById('filter-airline-flight').value.trim()
+          || document.getElementById('filter-pax-agent').value.trim();
+        if (!silent) currentPage = 1;
+        if (hasFilter) { applyFilters(); } else { filteredRecords = [...allRecords]; renderPage(); }
+        
+      } catch (error) {
+        if (!silent) {
+           document.getElementById('tableBody').innerHTML = '<tr><td colspan="14" style="text-align:center;padding:30px;color:var(--danger);">Error al sincronizar con el servidor.</td></tr>';
+        }
+      }
+    }
+    
+    function renderHeaders() {
+      const thead = document.getElementById('tableHeaders');
+      thead.innerHTML = "";
+      tableHeadersData.forEach(h => { const th = document.createElement('th'); th.textContent = h; thead.appendChild(th); });
+    }
+    function renderPage() {
+      const tbody = document.getElementById('tableBody');
+      tbody.innerHTML = "";
+      const total = filteredRecords.length;
+      const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+      const start = (currentPage - 1) * PAGE_SIZE;
+      const end   = Math.min(start + PAGE_SIZE, total);
+      const slice = filteredRecords.slice(start, end);
+      if (!slice.length) {
+        tbody.innerHTML = `<tr><td colspan="${tableHeadersData.length||14}" style="text-align:center;padding:40px;color:var(--text-muted);">🔍 No se encontraron registros con los filtros aplicados.</td></tr>`;
+      } else {
+        slice.forEach(row => {
+          const tr = document.createElement('tr');
+          row.forEach((cell, idx) => {
+            const td = document.createElement('td');
+            td.textContent = cell;
+            if (idx === COL.estado && (cell || '').toString().trim().toUpperCase() === 'NO MANIFESTADO') {
+              td.classList.add('estado-no-manifestado');
+            }
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+      }
+      document.getElementById('paginationInfo').textContent =
+        total > 0
+          ? `Mostrando ${start+1}–${end} de ${total} registros${allRecords.length !== total ? ` (filtrados de ${allRecords.length})` : ''}`
+          : "Sin registros";
+      renderPagination(totalPages);
+    }
+    function renderPagination(totalPages) {
+      const container = document.getElementById('paginationControls');
+      container.innerHTML = "";
+      if (totalPages <= 1) return;
+      const mkBtn = (label, page, disabled, active) => {
+        const btn = document.createElement('button');
+        btn.className = 'page-btn' + (active ? ' active' : '');
+        btn.textContent = label; btn.disabled = disabled;
+        if (!disabled && !active) btn.onclick = () => { currentPage = page; renderPage(); };
+        container.appendChild(btn);
+      };
+      const dot = () => { const s = document.createElement('span'); s.textContent = '…'; s.style.cssText = 'color:var(--text-muted);font-size:0.85em;padding:0 4px;'; container.appendChild(s); };
+      mkBtn('‹', currentPage-1, currentPage===1, false);
+      let s = Math.max(1, currentPage-2), e = Math.min(totalPages, currentPage+2);
+      if (s > 1) { mkBtn('1', 1, false, false); if (s > 2) dot(); }
+      for (let p = s; p <= e; p++) mkBtn(p, p, false, p === currentPage);
+      if (e < totalPages) { if (e < totalPages-1) dot(); mkBtn(totalPages, totalPages, false, false); }
+      mkBtn('›', currentPage+1, currentPage===totalPages, false);
+    }
+
+    // ── Filtros ────────────────────────────────────────────────
+    function normalizeDate(str) {
+      if (!str) return '';
+      const p = str.split('/');
+      if (p.length === 3) return `${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}`;
+      return str;
+    }
+    function applyFilters() {
+      const dateVal = document.getElementById('filter-date').value;
+      const afRaw   = document.getElementById('filter-airline-flight').value.trim().toUpperCase();
+      const paRaw   = document.getElementById('filter-pax-agent').value.trim().toLowerCase();
+      filteredRecords = allRecords.filter(row => {
+        if (dateVal && normalizeDate(row[COL.fecha]||'') !== dateVal) return false;
+        if (afRaw) {
+          const a = (row[COL.aerolinea]||'').toUpperCase(), v = (row[COL.vuelo]||'').toUpperCase();
+          if (!a.includes(afRaw) && !v.includes(afRaw)) return false;
+        }
+        if (paRaw) {
+          const px = (row[COL.pax]||'').toLowerCase(), ag = (row[COL.agente]||'').toLowerCase();
+          if (!px.includes(paRaw) && !ag.includes(paRaw)) return false;
+        }
+        return true;
+      });
+      const hasFilter = dateVal || afRaw || paRaw;
+      const strip = document.getElementById('info-strip-results');
+      if (hasFilter) {
+        strip.style.display = 'flex';
+        document.getElementById('info-strip-text').textContent = `Se encontraron ${filteredRecords.length} registro(s) que coinciden con la búsqueda.`;
+      } else { strip.style.display = 'none'; }
+      currentPage = 1; renderPage();
+    }
+    function clearFilters(render = true) {
+      document.getElementById('filter-date').value = '';
+      document.getElementById('filter-airline-flight').value = '';
+      document.getElementById('filter-pax-agent').value = '';
+      document.getElementById('info-strip-results').style.display = 'none';
+      filteredRecords = [...allRecords];
+      if (render) { currentPage = 1; renderPage(); }
+    }
+  </script>
+</body>
+</html>
