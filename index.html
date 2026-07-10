@@ -7,6 +7,25 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
+    /* Ajustes para pantallas pequeñas */
+@media (max-width: 768px) {
+  .form-container {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  /* Los campos ocupan el 100% del ancho en móviles */
+  .input-group, .field {
+    width: 100% !important;
+    margin-bottom: 10px;
+  }
+
+  /* Ajuste de la tabla de pasajeros para scroll horizontal */
+  .table-responsive {
+    overflow-x: auto;
+    display: block;
+  }
+}
     /* ===== DESIGN TOKENS ===== */
     :root {
       --bg:           #f0f4f8;
