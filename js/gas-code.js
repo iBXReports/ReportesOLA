@@ -84,7 +84,57 @@ function doPost(e) {
       ];
     });
 
+    var rowsByAirline = {};
+    registros.forEach(function(r) {
+      var key = (r.aerolinea || '').trim();
+      if (!key) return;
+      if (!rowsByAirline[key]) rowsByAirline[key] = [];
+      rowsByAirline[key].push([
+        r.fechaRegistro || '',
+        r.horaRegistro || '',
+        r.operacion || '',
+        r.aerolinea || '',
+        r.vuelo || '',
+        r.etaEtd || '',
+        r.puerta || '',
+        r.horaInicio || '',
+        r.horaTermino || '',
+        r.totalAsistencias || 0,
+        r.nombrePasajero || '',
+        r.atendidoPor || '',
+        r.asistencia || '',
+        r.estadoPasajero || ''
+      ]);
+    });
+
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+
+    Object.keys(rowsByAirline).forEach(function(name) {
+      var airlineSheet = ss.getSheetByName(name);
+      if (!airlineSheet) {
+        airlineSheet = ss.insertSheet(name);
+      }
+      if (airlineSheet.getLastRow() === 0) {
+        airlineSheet.getRange(1, 1, 1, 14).setValues([[
+          'Fecha Registro',
+          'Hora Registro',
+          'Operación',
+          'Aerolínea',
+          'Vuelo',
+          'ETA/ETD',
+          'Puerta',
+          'Hora Inicio',
+          'Hora Término',
+          'Total Asistencias',
+          'Nombre Pasajero',
+          'Atendido Por',
+          'Asistencia',
+          'Estado del Pasajero'
+        ]]);
+      }
+      var airlineRows = rowsByAirline[name];
+      airlineSheet.getRange(airlineSheet.getLastRow() + 1, 1, airlineRows.length, airlineRows[0].length).setValues(airlineRows);
+    });
 
     return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Registros guardados', cantidad: rows.length }))
       .setMimeType(ContentService.MimeType.JSON);
