@@ -62,17 +62,6 @@ function togglePmrFrame() {
   }
 }
 
-function toggleRecogidasFrame() {
-  const container = document.getElementById('recogidasFrameContainer');
-  const iframe = document.getElementById('recogidasFrame');
-  if (!container || !iframe) return;
-  const isVisible = container.style.display !== 'none';
-  container.style.display = isVisible ? 'none' : 'block';
-  if (!isVisible) {
-    iframe.src = iframe.src;
-  }
-}
-
 // ── Aerolíneas Offline ───────────────────────────────────────
 const OFFLINE_AIRLINES = ["DELTA","AIRFRANCE","KLM","AIRCANADA","AVIANCA","AEROLINEAS ARGENTINAS","ARAJET","BOA","BRITISH","COPA","IBERIA","LEVEL","QANTAS"];
 let globalAirlines = [];
