@@ -20,7 +20,7 @@
         <button class="nav-tab" onclick="switchView('recursos')">🍃Recursos</button>
       </div>
       <button id="themeToggleBtn" class="theme-btn" onclick="toggleTheme()">🌙 Oscuro</button>
-      <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">☰</button>
+      <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="toggleMobileMenu()" aria-label="Menu">MENU</button>
     </div>
   </nav>
 
@@ -28,7 +28,6 @@
     <button class="nav-tab active" onclick="switchView('form'); closeMobileMenu();">📄 Formulario</button>
     <button class="nav-tab" onclick="switchView('mi-rol'); closeMobileMenu();">⏰ Mi Rol</button>
     <button class="nav-tab" onclick="switchView('recursos'); closeMobileMenu();">Recursos</button>
-    <button class="nav-tab" onclick="switchView('admin'); closeMobileMenu();">🛡️ Admin</button>
   </div>
 
   <main>
@@ -124,10 +123,15 @@
             <h3 style="color: var(--accent); margin-bottom: 8px;">🌐 WebPMR</h3>
             <p style="color: var(--text-muted); font-size: 0.9rem;">Plataforma de gestión para agentes.</p>
           </div>
-          <a href="#" class="card" style="text-decoration: none; color: inherit;">
+        </div>
+        <div id="pmrFrameContainer" style="display:none; margin-top:12px;">
+          <iframe id="pmrFrame" src="https://script.google.com/a/macros/cargomobility.com/s/AKfycbwFBHpIx-gQrVAvj5Vv-I-l1X3NR9MYbyTV9CtxgKCw7oPeuxIE5qrYx3eZdDoIroTE/exec?v=agente" style="width:100%; height:78vh; border:1px solid var(--border); border-radius:var(--radius); background:#fff;"></iframe>
+        </div>
+        <div class="grid grid-2" style="margin-top:12px;">
+          <div class="card" style="cursor:pointer;" onclick="toggleRecogidasFrame()">
             <h3 style="color: var(--accent); margin-bottom: 8px;">📱 Nueva App — Recogidas y Zarpes</h3>
             <p style="color: var(--text-muted); font-size: 0.9rem;">Información actualizada de recogidas y zarpes.</p>
-          </a>
+          </div>
           <a href="https://play.google.com/store/apps/details?id=cl.ValueSite.AquiVoyExpressPasajeroWeTransport&hl=en&pli=1" target="_blank" rel="noopener" class="card" style="text-decoration: none; color: inherit;">
             <h3 style="color: var(--accent); margin-bottom: 8px;">🤖 Android — AquiVoy Express</h3>
             <p style="color: var(--text-muted); font-size: 0.9rem;">Descarga la app para Android en Google Play.</p>
@@ -137,8 +141,8 @@
             <p style="color: var(--text-muted); font-size: 0.9rem;">Descarga la app para iPhone en App Store.</p>
           </a>
         </div>
-        <div id="pmrFrameContainer" style="display:none; margin-top:12px;">
-          <iframe id="pmrFrame" src="https://script.google.com/a/macros/cargomobility.com/s/AKfycbwFBHpIx-gQrVAvj5Vv-I-l1X3NR9MYbyTV9CtxgKCw7oPeuxIE5qrYx3eZdDoIroTE/exec?v=agente" style="width:100%; height:78vh; border:1px solid var(--border); border-radius:var(--radius); background:#fff;"></iframe>
+        <div id="recogidasFrameContainer" style="display:none; margin-top:12px;">
+          <iframe id="recogidasFrame" src="https://wetransport.aquivoyexpress.com/" style="width:100%; height:78vh; border:1px solid var(--border); border-radius:var(--radius); background:#fff;"></iframe>
         </div>
         <div class="card mt-3">
           <h3>📧 Correos de Contacto</h3>
