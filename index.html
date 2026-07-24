@@ -35,7 +35,7 @@
     <div id="view-form" class="view active">
       <div class="card">
         <h2>📋 Datos Generales del Vuelo</h2>
-        <form id="mainForm" onsubmit="return sendFormToServer();">
+        <form id="mainForm" onsubmit="event.preventDefault(); sendFormToServer();">
           <div class="form-grid">
             <div class="form-group">
               <label>Tipo de Operación</label>
@@ -64,11 +64,11 @@
             </div>
             <div class="form-group">
               <label>🕧 Hora de Inicio (1er Pax)</label>
-              <input type="time" id="horaInicio" required>
+              <input type="time" id="horaInicio">
             </div>
             <div class="form-group">
               <label>🕧 Hora de Término (Último Pax)</label>
-              <input type="time" id="horaTermino" required>
+              <input type="time" id="horaTermino">
             </div>
             <div class="form-group">
               <label>🙋‍♂️ Agentes que asistieron</label>
@@ -92,7 +92,7 @@
 
           <div style="display:flex; gap:10px; flex-wrap:wrap;">
             <button type="button" class="btn btn-ghost" onclick="addPassengerRow()">+ Agregar Pasajero</button>
-            <button type="submit" class="btn btn-accent btn-full" id="btn-submit" style="flex:1; min-width:200px;">
+            <button type="button" class="btn btn-accent btn-full" id="btn-submit" onclick="sendFormToServer()" style="flex:1; min-width:200px;">
               💾 Guardar Registro General
             </button>
           </div>

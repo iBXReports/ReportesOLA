@@ -137,7 +137,7 @@ function addPassengerRow() {
       <input type="text" class="pax-name" placeholder="Nombre completo" required>
     </div>
     <div class="pax-field" data-label="Asistencia">
-      <select class="pax-service">
+      <select class="pax-service" required>
         <option value="WCHR">WCHR</option><option value="WCHS">WCHS</option>
         <option value="WCHC">WCHC</option><option value="ORUGA">ORUGA</option>
         <option value="DEAF/BLND">DEAF/BLND</option><option value="UMNR">UMNR</option>
@@ -145,7 +145,7 @@ function addPassengerRow() {
       </select>
     </div>
     <div class="pax-field" data-label="Estado del Pasajero">
-      <select class="pax-status" onchange="calculateMetrics()">
+      <select class="pax-status" onchange="calculateMetrics()" required>
         <option value="PAX ASISTIDO">PAX ASISTIDO</option>
         <option value="NO ASISTIDO">NO ASISTIDO</option>
         <option value="NO CONTACTA">NO CONTACTA</option>
@@ -213,6 +213,15 @@ function generateConsolidadoTexto(payload) {
 }
 
 async function sendFormToServer() {
+  console.log('sendFormToServer iniciado');
+  const form = document.getElementById('mainForm');
+  if (!form.checkValidity()) {
+    console.log('Formulario inválido');
+    form.reportValidity();
+    return;
+  }
+  console.log('Formulario válido, continuando...');
+
   const aerolineaEl = document.getElementById('aerolinea');
   const vueloEl = document.getElementById('vuelo');
   if (!aerolineaEl || !vueloEl) { alert('No se encontraron los campos del formulario.'); return; }
@@ -228,9 +237,11 @@ async function sendFormToServer() {
     const service = row.querySelector('.pax-service').value;
     const status  = row.querySelector('.pax-status').value;
     const agente  = row.querySelector('.pax-agent-select').value;
-    if (nombre) { if (!agente) validado = false; listaPasajeros.push({ nombre, asistencia: service, estado: status, agente }); if (status === "PAX ASISTIDO") totalAsist++; }
+    if (!nombre || !service || !status || !agente) validado = false;
+    if (nombre) { listaPasajeros.push({ nombre, asistencia: service, estado: status, agente }); if (status === "PAX ASISTIDO") totalAsist++; }
   });
-  if (!validado) { alert("Por favor, asigne qué agente atendió a cada pasajero."); return; }
+  if (!validado) { alert("Complete todos los campos del desglose de pasajeros."); return; }
+  console.log('Payload preparado, enviando a GAS...');
 
   const btn = document.getElementById('btn-submit');
   if (btn) { btn.textContent = "Guardando..."; btn.disabled = true; }
@@ -275,14 +286,17 @@ async function sendFormToServer() {
     modalText = "Error: Debes configurar la URL del Google Apps Script en js/app.js (const GAS_URL).";
   } else {
     try {
+      console.log('Enviando a GAS_URL:', GAS_URL);
       await fetch(GAS_URL, {
         method: 'POST',
         mode: 'no-cors',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ registros: payload.registros })
       });
+      console.log('Fetch enviado');
       modalText = generateConsolidadoTexto(payload);
     } catch (e) {
+      console.error('Error fetch:', e);
       modalText = "Error de conexión al guardar: " + e.message;
     }
   }
@@ -290,7 +304,10 @@ async function sendFormToServer() {
     const consolidadoTextArea = document.getElementById('consolidadoTextArea');
     if (consolidadoTextArea) consolidadoTextArea.value = modalText;
     const modal = document.getElementById('consolidadoModal');
-    if (modal) modal.classList.add('active');
+    if (modal) {
+      modal.classList.add('active');
+      modal.style.display = 'flex';
+    }
   } catch(e) {
     alert(modalText);
   }
