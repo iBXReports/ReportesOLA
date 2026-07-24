@@ -1,0 +1,1087 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CargoWeb - Admin</title>
+  <meta name="description" content="Panel de administracion de CargoWeb">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+  <nav class="nav">
+    <a href="index.html" class="nav-brand">✈️ <span>CargoWeb</span></a>
+    <div class="nav-right">
+      <div class="nav-tabs" id="navTabs">
+        <button class="nav-tab" onclick="location.href='index.html'">📄 Formulario</button>
+        <button class="nav-tab active" id="navAdminBtn" onclick="gatekeeperAdmin()">🛡️ Administrador</button>
+      </div>
+      <button id="themeToggleBtn" class="theme-btn" onclick="toggleTheme()">🌙 Oscuro</button>
+    </div>
+  </nav>
+
+  <!-- Vista: Login -->
+  <div id="view-login" class="view active">
+    <div class="login-box card">
+      <h2>🔒 Acceso Administrativo</h2>
+      <p>Ingrese la contraseña para continuar</p>
+      <input type="password" id="adminPassword" placeholder="CONTRASEÑA" autocomplete="off" onkeydown="if(event.key==='Enter') validateAdminLogin()">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:0.85em;color:var(--text-muted);">
+        <input type="checkbox" id="rememberPassword">
+        <label for="rememberPassword" style="margin:0;text-transform:none;font-weight:400;">Recordar contraseña</label>
+      </div>
+      <div id="loginError" style="color:#ef4444;font-size:0.85em;min-height:20px;margin-bottom:8px;"></div>
+      <button class="btn btn-accent btn-full" onclick="validateAdminLogin()">Ingresar</button>
+    </div>
+  </div>
+
+  <!-- Vista: Admin -->
+  <div id="view-admin" class="view">
+    <div class="section" style="max-width:1300px;">
+      <div class="hero" style="padding:20px 0;">
+        <h1>Panel de Administracion</h1>
+        <p>Gestiona formularios, revisa datos y configura el sistema.</p>
+      </div>
+
+      <div class="sub-tabs">
+        <button class="sub-tab active" onclick="switchAdminTab('db', this)">📊 Base de Datos</button>
+        <button class="sub-tab" onclick="switchAdminTab('planificacion', this)">📋 Planificación</button>
+        <button class="sub-tab" onclick="switchAdminTab('config', this)">⚙️ Configuración</button>
+      </div>
+
+      <!-- Base de Datos -->
+      <div id="admin-db" class="sub-view active">
+        <div class="card" style="padding:0;">
+          <div class="card-header" style="padding:18px 24px;">
+            <div class="card-title">📊 Base de Datos — Registros de Formularios</div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn btn-ghost btn-sm" id="refreshForms" onclick="loadForms()">🔄 Sincronizar</button>
+            </div>
+          </div>
+          <div id="formsAlert" class="alert"></div>
+
+          <div class="search-bar">
+            <div class="form-group">
+              <label>📅 Fecha</label>
+              <input type="date" id="filter-date" oninput="applyFilters()">
+            </div>
+            <div class="form-group">
+              <label>✈️ Aerolínea / Vuelo</label>
+              <input type="text" id="filter-airline-flight" placeholder="Ej: DELTA o DL147" oninput="applyFilters()" style="text-transform:uppercase;">
+            </div>
+            <div class="form-group">
+              <label>🧑 Pasajero / Agente</label>
+              <input type="text" id="filter-pax-agent" placeholder="Nombre de pasajero o agente" oninput="applyFilters()">
+            </div>
+            <div class="form-group">
+              <label>&nbsp;</label>
+              <button class="btn btn-ghost" onclick="clearFilters()">✕ Limpiar</button>
+            </div>
+          </div>
+
+          <div id="info-strip-results" class="info-strip" style="display:none;">
+            <span>🔍</span><span id="info-strip-text"></span>
+          </div>
+
+          <div class="excel-container" style="padding:0; max-width:1300px; margin:0 auto; width:100%;">
+            <table id="formsTable" style="width:100%; table-layout:fixed; font-size:0.8em;">
+              <thead><tr id="tableHeaders"></tr></thead>
+              <tbody id="tableBody"><tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Cargando registros...</td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <div class="pagination-info" id="paginationInfo">—</div>
+            <div class="pagination-controls" id="paginationControls"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Planificación -->
+      <div id="admin-planificacion" class="sub-view">
+        <div class="admin-sub-tabs">
+          <button class="admin-sub-tab active" onclick="switchPlanificacionTab('diaria', this)">📅 Dotación Diaria</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('colaciones', this)">🍽️ Colaciones</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('operaciones', this)">📋 Operaciones</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('control-agentes', this)">👮 Control Agentes</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('extensiones', this)">⏱️ Extensiones</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('transportes', this)">🚛 Transportes</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('reportes', this)">📝 Reportes</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('agentes', this)">👥 Agentes</button>
+          <button class="admin-sub-tab" onclick="switchPlanificacionTab('rol-mensual', this)">📅 ROL Mensual</button>
+        </div>
+
+        <div id="planificacion-diaria" class="admin-sub-view active">
+          <div class="card" style="margin-bottom:12px;">
+            <div class="card-header">
+              <div class="card-title">📅 Dotación Actual</div>
+              <button class="btn btn-accent btn-sm" onclick="refreshDotacionActual()">🔄 Actualizar</button>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+              <div>
+                <h3 style="font-size:0.9em;color:var(--text);">👥 En Turno Ahora</h3>
+                <div id="enTurnoContainer" class="list-container" style="max-height:220px;"></div>
+              </div>
+              <div>
+                <h3 style="font-size:0.9em;color:var(--text);">⏱️ Próximos Ingresos/Salidas (3h)</h3>
+                <div id="proximosContainer" class="list-container" style="max-height:220px;"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📅 Dotación Diaria <span id="dotacionFechaLabel" style="font-size:0.8em;color:var(--text-muted);margin-left:10px;"></span></div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="date" id="dotacionFecha" onchange="changeDotacionDate(this.value)" style="padding:6px 10px;font-size:0.9em;">
+                <button class="btn btn-accent btn-sm" onclick="goToToday()">📅 Hoy</button>
+                <button class="btn btn-accent btn-sm" onclick="addDotacionRow()">➕ Agregar Agente</button>
+                <button class="btn btn-success btn-sm" onclick="exportDotacionDiariaExcel()">📤 Exportar Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="document.getElementById('dotacionFileInput').click()">📥 Importar Excel</button>
+                <button class="btn btn-ghost btn-sm" onclick="openDotacionPasteModal()">📋 Pegar desde Excel</button>
+                <button class="btn btn-danger btn-sm" onclick="clearDotacionDiaria()">🗑️ Limpiar</button>
+              </div>
+            </div>
+            <input type="file" id="dotacionFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="onDotacionFileChange(this)">
+            <div class="hint-box">
+              💡 <strong>Importar / Pegar:</strong> sube un archivo <strong>.xlsx / .xls / .csv</strong> o usa "Pegar desde Excel" copiando el rango (ej. A1:Z100) de tu hoja y pegándolo en el cuadro. La tabla se llenará automáticamente. Puedes editar cualquier celda directamente.
+            </div>
+            <div class="excel-container">
+              <table id="dotacionTable">
+                <thead><tr id="dotacionTableHead"></tr></thead>
+                <tbody id="dotacionTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-colaciones" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🍽️ Colaciones en Curso</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-accent btn-sm" onclick="asignarColacionDesdeTab()">➕ Asignar Colación</button>
+                <button class="btn btn-accent btn-sm" onclick="refreshColaciones()">🔄 Actualizar</button>
+              </div>
+            </div>
+            <div id="colacionesContainer" class="list-container colaciones-grid" style="max-height:none;"></div>
+          </div>
+        </div>
+
+        <div id="planificacion-operaciones" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📋 Operaciones Asignadas</div>
+              <button class="btn btn-accent btn-sm" onclick="openOperacionModal()">➕ Nueva Operación</button>
+            </div>
+            <div class="catalog-layout">
+              <div>
+                <h3 style="font-size:0.95em;color:var(--text);margin-bottom:8px;">🟢 Agentes Disponibles</h3>
+                <div id="disponiblesContainer" class="list-container" style="max-height:340px;"></div>
+              </div>
+              <div>
+                <h3 style="font-size:0.95em;color:var(--text);margin-bottom:8px;">📋 Asignados a Operación</h3>
+                <div id="operacionesContainer" class="list-container" style="max-height:340px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-control-agentes" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">👮 Control Agentes</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-accent btn-sm" onclick="openControlModal()">➕ Nuevo Registro</button>
+                <button class="btn btn-accent btn-sm" onclick="loadControlFromServer()">🔄 Actualizar</button>
+              </div>
+            </div>
+            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">🚫 Agentes Ausentes (planificación de hoy)</h3>
+            <div id="ctrlAusentesHoy" class="hint-box">—</div>
+            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">📆 Agentes con ausencias en 2 o más días distintos</h3>
+            <div id="ctrlAusentesDias" class="hint-box">—</div>
+            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">⚠️ Agentes con 3 o más ausencias</h3>
+            <div id="ctrlAusentes3" class="hint-box">—</div>
+            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">🏥 Licencias Activas</h3>
+            <div id="ctrlLicenciasActivas" class="hint-box">—</div>
+            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">📋 Cartas de Amonestación</h3>
+            <div class="excel-container">
+              <table id="controlTable" style="width:100%;">
+                <thead><tr><th>Nombre Agente</th><th>Motivo</th><th>Estado</th><th>Firmada</th><th>Acción</th></tr></thead>
+                <tbody id="controlTableBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Sin registros de control.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-extensiones" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">⏱️ Control de Horas Extras (HHEE)</div>
+              <div style="display:flex;gap:8px;">
+                <button class="btn btn-accent btn-sm" onclick="cargarHHEE()">🔄 Actualizar</button>
+                <button class="btn btn-success btn-sm" onclick="openHHEEModal()">➕ Agregar Horas Extras</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;">
+              <a class="btn btn-info btn-sm" href="https://docs.google.com/forms/d/e/1FAIpQLSf0oIEcMXUQOB6pqTWxVVlRc90den3LtuUkID-Oj7utBEcykw/viewform" target="_blank" rel="noopener">📝 Ingresar por Agente</a>
+              <a class="btn btn-info btn-sm" href="https://docs.google.com/forms/d/e/1FAIpQLScWxxh86PZ4_5r7tWkhaM1Qf5uonEwNxXCKOnarjb6xJMoDBw/viewform" target="_blank" rel="noopener">📝 Ingresar Supervisores/CDO</a>
+            </div>
+            <div class="excel-container">
+              <table id="hheeTable">
+                <thead><tr id="hheeTableHead"></tr></thead>
+                <tbody id="hheeTableBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Cargando registros...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📋 Extensiones</div>
+              <button class="btn btn-accent btn-sm" onclick="cargarExtensiones()">🔄 Actualizar</button>
+            </div>
+            <div class="excel-container">
+              <table id="extensionesTable">
+                <thead><tr id="extensionesTableHead"></tr></thead>
+                <tbody id="extensionesTableBody"><tr><td colspan="11" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Cargando registros...</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-transportes" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🚛 Transportes — Recogidas y Zarpes (21:00 - 07:00)</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <input type="date" id="transportesFecha" style="padding:6px 10px;font-size:0.9em;">
+                <button class="btn btn-accent btn-sm" onclick="goToTodayTransportes()">📅 Hoy</button>
+                <button class="btn btn-accent btn-sm" onclick="loadTransportes()">🔄 Actualizar</button>
+                <button class="btn btn-success btn-sm" onclick="exportTransportesExcel()">📊 Exportar Excel</button>
+              </div>
+            </div>
+            <div id="transportesError" style="display:none;background:var(--danger-bg);color:var(--danger);padding:10px 14px;border-radius:var(--radius-xs);margin-bottom:12px;font-weight:600;"></div>
+            <div id="transportesHint" class="hint-box" style="display:none;"></div>
+            <div class="excel-container" style="margin-top:12px;">
+              <table id="transportesTable">
+                <thead><tr id="transportesTableHead"></tr></thead>
+                <tbody id="transportesTableBody"><tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Selecciona una fecha y presiona Actualizar.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-reportes" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📝 Reporte de Cierre de Turno</div>
+            </div>
+            <form id="reporteForm" onsubmit="event.preventDefault();">
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);padding-bottom:8px;">📋 CIERRE DE TURNO: Fecha</h2>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Fecha</label>
+                  <input type="date" id="repoFecha" required onchange="cargarDatosReportes()">
+                </div>
+                <div class="form-group">
+                  <label>Supervisor OLA</label>
+                  <input type="text" id="repoSupOLA" placeholder="Nombre Supervisor 1" style="text-transform:uppercase;" required>
+                </div>
+                <div class="form-group">
+                  <label>Supervisor LATAM</label>
+                  <input type="text" id="repoSupLATAM" placeholder="Nombre Supervisor 2" style="text-transform:uppercase;">
+                </div>
+                <div class="form-group">
+                  <label>CDO OLA</label>
+                  <input type="text" id="repoCdoOLA" placeholder="Nombre CDO OLA" style="text-transform:uppercase;">
+                </div>
+                <div class="form-group">
+                  <label>CDO LATAM</label>
+                  <input type="text" id="repoCdoLATAM" placeholder="Nombre CDO LATAM" style="text-transform:uppercase;">
+                </div>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">🟢 1. ESTADO GENERAL</h2>
+              <div class="form-group">
+                <label>Cambio de turno en operación...</label>
+                <input type="text" id="repoEstado" placeholder="Ej: CONTROLADA" style="text-transform:uppercase;" required>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">👥 2. ASISTENCIA</h2>
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>OPERATIVOS</label>
+                  <input type="number" id="repoOp" min="0" placeholder="Cantidad">
+                </div>
+                <div class="form-group">
+                  <label>SIN TICA</label>
+                  <input type="number" id="repoSinTica" min="0" placeholder="Cantidad">
+                </div>
+                <div class="form-group">
+                  <label>AUSENCIAS</label>
+                  <input type="number" id="repoAus" min="0" placeholder="Cantidad">
+                </div>
+                <div class="form-group">
+                  <label>EXTENSIONES</label>
+                  <input type="number" id="repoExt" min="0" placeholder="Cantidad" onchange="toggleRepoExtDetalle()">
+                </div>
+              </div>
+              <div class="form-group" style="margin-top:8px;">
+                <label>Agentes Ausentes (automático)</label>
+                <div id="repoAusentesList" class="hint-box" style="margin-top:4px;">Selecciona una fecha para cargar.</div>
+              </div>
+              <div class="form-group" style="margin-top:8px;">
+                <label>Agentes SIN TICA (automático)</label>
+                <div id="repoSinTicaList" class="hint-box" style="margin-top:4px;">Selecciona una fecha para cargar.</div>
+              </div>
+              <div id="repoExtDetalle" style="display:none;margin-top:12px;">
+                <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);">Detalle de Extensiones</h2>
+                <div id="repoExtList"></div>
+                <button type="button" class="btn btn-ghost btn-sm" onclick="addRepoExtRow()" style="margin-top:8px;">+ Agregar Extensión</button>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">⚠️ 3. IMPACTO OPERACIONAL</h2>
+              <div class="form-group">
+                <textarea id="repoImpacto" rows="4" placeholder="Indicar información relevante referente a impacto operacional del turno" style="resize:vertical;"></textarea>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">✈️ 4. OPERACIÓN (OBSERVACIONES)</h2>
+              <div class="form-group">
+                <label>Fluidez de atención</label>
+                <textarea id="repoFluidez" rows="2" placeholder="Ej: Se coordino de forma exitosa los vuelos del peak de OLA/LATAM" style="resize:vertical;"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Equipos</label>
+                <textarea id="repoEquipos" rows="3" placeholder="Ej: Se dejan cargadas las orugas... radios, celulares, cargadores" style="resize:vertical;"></textarea>
+              </div>
+              <div class="form-group">
+                <label>Coordinación</label>
+                <textarea id="repoCoord" rows="2" placeholder="Ej: Se deja el cambio de turno LATAM coordinado hasta las 19:00" style="resize:vertical;"></textarea>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">📌 6. INCIDENCIAS</h2>
+              <div class="form-group">
+                <textarea id="repoIncidencias" rows="2" placeholder="N/A (Sin novedades)" style="resize:vertical;"></textarea>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">👔 7. DISCIPLINA</h2>
+              <div class="form-group">
+                <textarea id="repoDisciplina" rows="2" placeholder="Ej: REFORZAR: Presentación personal y uso correcto de uniformes." style="resize:vertical;"></textarea>
+              </div>
+              <h2 style="font-size:1em;color:var(--accent);border-bottom:1px solid var(--border);margin-top:8px;">⏳ 8. PENDIENTES DEL TURNO</h2>
+              <div class="form-group">
+                <textarea id="repoPendientes" rows="2" placeholder="Ej: Ninguno. Todo lo relevante fue informado y coordinado directamente con Supervisor" style="resize:vertical;"></textarea>
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;">
+                <button type="button" class="btn btn-accent btn-full" onclick="generarResumenReporte()">📋 Generar Resumen</button>
+                <button type="button" class="btn btn-success" onclick="guardarReporte()">💾 Guardar Reporte</button>
+              </div>
+            </form>
+          </div>
+          <div class="card" style="margin-top:12px;">
+            <div class="card-header">
+              <div class="card-title">📋 Historial de Reportes</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-accent btn-sm" onclick="cargarReportes()">🔄 Actualizar</button>
+              </div>
+            </div>
+            <div id="reportesListContainer" class="list-container" style="max-height:none;">
+              <div style="padding:20px;color:var(--text-muted);">Selecciona una fecha y guarda reportes para ver el historial.</div>
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-agentes" class="admin-sub-view">
+          <div class="card">
+            <div class="card-title">👥 Agentes</div>
+            <div class="hint-box">
+              Próximamente: gestión de agentes, altas, bajas y modificaciones.
+            </div>
+          </div>
+        </div>
+
+        <div id="planificacion-rol-mensual" class="admin-sub-view">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">📅 ROL Mensual</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                <button class="btn btn-accent btn-sm" onclick="document.getElementById('rolMensualFileInput').click()">📥 Cargar Excel ROL</button>
+                <button class="btn btn-success btn-sm" onclick="generarDotacionMensual()">✅ Generar Dotación del Mes</button>
+                <button class="btn btn-danger btn-sm" onclick="limpiarRolMensual()">🗑️ Limpiar ROL</button>
+              </div>
+            </div>
+            <input type="file" id="rolMensualFileInput" accept=".xlsx,.xls,.csv" style="display:none;" onchange="onRolMensualFileChange(this)">
+            <div class="hint-box">
+              📌 <strong>Formato esperado:</strong> encabezados en <strong>A2:AH2</strong> (RUT, AGENTES, CARGO y fechas del 1 al último día del mes). Turnos en <strong>D3:AH200</strong>. Códigos: <strong>L</strong>=Libre, <strong>VA</strong>=Vacaciones, <strong>LM</strong>=Licencia Médica. El resto se interpreta como turno (ej: <strong>T1500</strong>, <strong>M0800</strong>, <strong>N2106</strong>).
+            </div>
+            <div class="search-bar">
+              <div class="form-group">
+                <label>🔍 RUT</label>
+                <input type="text" id="rol-filter-rut" placeholder="Ej: 12345678" oninput="renderRolMensual()">
+              </div>
+              <div class="form-group">
+                <label>🧑 Agente</label>
+                <input type="text" id="rol-filter-nombre" placeholder="Nombre agente" oninput="renderRolMensual()">
+              </div>
+              <div class="form-group">
+                <label>💼 Cargo</label>
+                <input type="text" id="rol-filter-cargo" placeholder="Ej: SPVR" oninput="renderRolMensual()">
+              </div>
+              <div class="form-group">
+                <label>&nbsp;</label>
+                <button class="btn btn-ghost" onclick="limpiarFiltrosRol()">✕ Limpiar</button>
+              </div>
+            </div>
+            <div class="excel-container" style="max-height:70vh;overflow:auto;">
+              <table id="rolMensualTable">
+                <thead><tr id="rolMensualTableHead"></tr></thead>
+                <tbody id="rolMensualTableBody"><tr><td colspan="14" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Carga un archivo Excel con el rol mensual para comenzar.</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Configuración -->
+      <div id="admin-config" class="sub-view">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">⚙️ Configuración del Sistema</div>
+          </div>
+          <div class="catalog-layout">
+            <div>
+              <h2 style="font-size:1em;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:8px;">➕ Agregar Aerolínea</h2>
+              <div class="form-group" style="margin-bottom:10px;">
+                <label>Nombre de la aerolínea</label>
+                <input type="text" id="newAirlineName" placeholder="Ej: LATAM" style="text-transform:uppercase;">
+              </div>
+              <button class="btn btn-accent btn-full" onclick="addNewAirlineToList()">+ Agregar al Catálogo</button>
+              <div class="hint-box">
+                <strong>ℹ️ Instrucciones</strong><br>
+                1. Ingrese el nombre de la aerolínea arriba.<br>
+                2. Presione "+ Agregar al Catálogo".<br>
+                3. Para eliminar una aerolínea presione ✕ junto a su nombre.<br>
+                4. Confirme los cambios con el botón verde.
+              </div>
+            </div>
+            <div>
+              <h2 style="font-size:1em;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:8px;">✈️ Catálogo de Aerolíneas</h2>
+              <div class="list-container" id="adminAirlinesUI"></div>
+              <button class="btn btn-success btn-full" id="btn-save-airlines" onclick="pushAirlinesToServer()">✅ Confirmar Catálogo</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Consolidado -->
+  <div id="consolidadoModal" class="modal-overlay" onclick="if(event.target===this) closeModal()">
+    <div class="modal-content">
+      <div class="modal-title">📋 Reporte Consolidado</div>
+      <div class="modal-subtitle">Copie el texto a continuación para compartir el estado del vuelo</div>
+      <textarea id="consolidadoTextArea" readonly></textarea>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
+        <button type="button" class="btn btn-accent" onclick="copyConsolidadoText()">📋 Copiar Texto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dotación Paste Modal -->
+  <div id="dotacionPasteModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">📋 Pegar datos desde Excel</div>
+      <div class="modal-subtitle">Copia el rango de celdas en Excel (Ctrl+C) y pégalo aquí (Ctrl+V). La tabla se llenará automáticamente.</div>
+      <textarea id="dotacionPasteArea" placeholder="Pega aquí las celdas copiadas de Excel..."></textarea>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="ingestDotacionPaste()">✅ Insertar Tabla</button>
+        <button class="btn btn-secondary" onclick="closeDotacionPasteModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Operacion Modal -->
+  <div id="operacionModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">📋 Asignar Operación</div>
+      <div class="modal-subtitle">Selecciona agente y configura la operación.</div>
+      <div class="form-group">
+        <label>Agente</label>
+        <select id="operacionAgente"></select>
+      </div>
+      <div class="form-group">
+        <label>Tipo de Operación</label>
+        <select id="operacionTipo" onchange="actualizarEtiquetaPuente()">
+          <option value="ARRIBO">Arribo (ARR)</option>
+          <option value="EMBARQUE">Embarque (EMB)</option>
+          <option value="COUNTER">Counter</option>
+          <option value="BARRIDO DE SILLAS">Barrido de Sillas</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Aerolínea</label>
+        <select id="operacionAerolinea"><option value="">-- Selecciona --</option></select>
+      </div>
+      <div class="form-group" id="operacionVueloGroup" style="display:none;">
+        <label>Vuelo</label>
+        <input type="text" id="operacionVuelo" placeholder="Ej: DL146" style="text-transform:uppercase;">
+      </div>
+      <div class="form-group">
+        <label>Terminal</label>
+        <select id="operacionTerminal"><option value="T1 NAC">T1 NAC</option><option value="T2 INTER">T2 INTER</option></select>
+      </div>
+      <div class="form-group" id="operacionPuenteLabel">
+        <label>Puente</label>
+        <input type="text" id="operacionPuente" placeholder="Ej: E3A">
+        <select id="operacionCounter" style="display:none;">
+          <option value="">-- Selecciona --</option>
+          <option value="COUNTER DELTA">Counter DELTA</option>
+          <option value="COUNTER AIRFRANCE/KLM">Counter AirFrance/KLM</option>
+          <option value="COUNTER AIRCANADA">Counter AirCanada</option>
+          <option value="OTRO">OTRO</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Función del Agente</label>
+        <select id="operacionFuncion">
+          <option value="RECEPCION DE PASAJEROS">Recepción de Pasajeros</option>
+          <option value="EMBARQUE DE PASAJEROS">Embarque de Pasajeros</option>
+          <option value="ASISTENCIA WCHC">Asistencia WCHC</option>
+          <option value="ASISTENCIA ORUGA">Asistencia Oruga</option>
+          <option value="COUNTERS">Counters</option>
+          <option value="OTRO">Otro</option>
+        </select>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div class="form-group">
+          <label>Hora Desde</label>
+          <input type="time" id="operacionHoraDesde">
+        </div>
+        <div class="form-group">
+          <label>Hora Hasta</label>
+          <input type="time" id="operacionHoraHasta">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="saveOperacion()">✅ Guardar</button>
+        <button class="btn btn-secondary" onclick="closeOperacionModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Colacion Modal -->
+  <div id="colacionModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">🍽️ Asignar Colación</div>
+      <div class="modal-subtitle">Configura el horario de colación para el agente.</div>
+      <div class="form-group">
+        <label>Agente</label>
+        <select id="colacionAgente"></select>
+      </div>
+      <div class="form-group">
+        <label>Hora Inicio Colación</label>
+        <input type="time" id="colacionHoraInicio">
+      </div>
+      <div class="form-group">
+        <label>Hora Fin Colación</label>
+        <input type="time" id="colacionHoraFin">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="saveColacion()">✅ Guardar</button>
+        <button class="btn btn-secondary" onclick="closeColacionModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Extension Modal -->
+  <div id="extensionModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">📋 Extender Turno</div>
+      <div class="modal-subtitle">Registra la extensión de turno para el agente.</div>
+      <div class="form-group">
+        <label>Quien Autoriza</label>
+        <select id="extAutorizadoPor">
+          <option value="">-- Selecciona --</option>
+          <option value="NATALIA CASTILLO">NATALIA CASTILLO</option>
+          <option value="DIEGO VILLANUEVA">DIEGO VILLANUEVA</option>
+          <option value="CAMILO RODRIGUEZ">CAMILO RODRIGUEZ</option>
+          <option value="DIEGO GONZALEZ">DIEGO GONZALEZ</option>
+          <option value="SANDY RIVERA">SANDY RIVERA</option>
+          <option value="CARLOS SINCHI">CARLOS SINCHI</option>
+          <option value="CAMILA GUTIERREZ">CAMILA GUTIERREZ</option>
+          <option value="IAN SAAVEDRA">IAN SAAVEDRA</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>RUT Trabajador</label>
+        <input type="text" id="extRut" readonly style="background:var(--tag-bg);">
+      </div>
+      <div class="form-group">
+        <label>Apellido / Nombre del agente</label>
+        <input type="text" id="extNombre" readonly style="background:var(--tag-bg);">
+      </div>
+      <div class="form-group">
+        <label>Tipo de Hora Extra</label>
+        <select id="extTipoHHEE">
+          <option value="">-- Selecciona --</option>
+          <option value="PROLONGACION">PROLONGACION</option>
+          <option value="ADELANTO DE TURNO">ADELANTO DE TURNO</option>
+          <option value="ACTIVACION">ACTIVACION</option>
+          <option value="OTROS">OTROS</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Motivo de HHEE</label>
+        <select id="extMotivoSelect">
+          <option value="">-- Selecciona --</option>
+          <option value="Extension por Bajo Personal con TICA">Extension por Bajo Personal con TICA</option>
+          <option value="Extension por Falta de Personal">Extension por Falta de Personal</option>
+          <option value="Extension para cubrir operaciones de LATAM">Extension para cubrir operaciones de LATAM</option>
+          <option value="Extension para cubrir operaciones de OLA">Extension para cubrir operaciones de OLA</option>
+          <option value="Extension a causa de Ausencias de Turno">Extension a causa de Ausencias de Turno</option>
+          <option value="-OTRO-">-OTRO-</option>
+        </select>
+        <input type="text" id="extMotivoOtro" placeholder="Especifique motivo" style="display:none;margin-top:6px;">
+      </div>
+      <div class="form-group">
+        <label>Es Festivo o Feriado?</label>
+        <select id="extFeriado">
+          <option value="">-- Seleccione --</option>
+          <option value="SI">SI</option>
+          <option value="NO">NO</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Hora Inicio HHEE</label>
+        <input type="time" id="extHoraInicioHHEE">
+      </div>
+      <div class="form-group">
+        <label>Hora Término HHEE</label>
+        <input type="time" id="extHoraTerminoHHEE">
+      </div>
+      <div class="form-group">
+        <label>Horas Extras Calculadas</label>
+        <input type="text" id="extHorasExtras" readonly style="background:var(--tag-bg);">
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="saveExtension()">✅ Guardar Extensión</button>
+        <button class="btn btn-secondary" onclick="closeExtensionModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Control Modal -->
+  <div id="controlModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">👮 Registro de Control de Agente</div>
+      <div class="modal-subtitle">Selecciona el tipo de registro y completa los datos.</div>
+      <div class="form-group">
+        <label>Tipo de Registro</label>
+        <div style="display:flex;gap:10px;">
+          <label style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;">
+            <input type="radio" name="ctrlTipo" value="LICENCIA" onchange="toggleCtrlTipo()" checked> 🏥 Licencia
+          </label>
+          <label style="flex:1;padding:10px;border:1px solid var(--border);border-radius:8px;cursor:pointer;text-align:center;">
+            <input type="radio" name="ctrlTipo" value="CARTA" onchange="toggleCtrlTipo()"> 📋 Carta de Amonestación
+          </label>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>RUT</label>
+        <input type="text" id="ctrlRut" placeholder="Ej: 12345678-9" style="text-transform:uppercase;">
+      </div>
+      <div class="form-group">
+        <label>Apellido / Nombre</label>
+        <input type="text" id="ctrlNombre" placeholder="Nombre completo" style="text-transform:uppercase;">
+      </div>
+      <div id="ctrlLicGroup">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
+            <label>Licencia Desde</label>
+            <input type="date" id="ctrlLicDesde">
+          </div>
+          <div class="form-group">
+            <label>Licencia Hasta</label>
+            <input type="date" id="ctrlLicHasta">
+          </div>
+        </div>
+      </div>
+      <div id="ctrlCartaGroup" style="display:none;">
+        <div class="form-group">
+          <label>Motivo de la Carta</label>
+          <select id="ctrlMotivo">
+            <option value="">-- Seleccione --</option>
+            <option value="NO LLEGO A EMBARQUE">NO LLEGO A EMBARQUE</option>
+            <option value="NO LLEGO A ARRIBO">NO LLEGO A ARRIBO</option>
+            <option value="ANDA SIN SU ROPA">ANDA SIN SU ROPA</option>
+            <option value="OTRO">OTRO</option>
+          </select>
+          <input type="text" id="ctrlMotivoOtro" placeholder="Especifique motivo" style="display:none;margin-top:6px;">
+        </div>
+        <div class="form-group">
+          <label>¿Firmada?</label>
+          <select id="ctrlFirmada">
+            <option value="">-- Seleccione --</option>
+            <option value="SI">SI</option>
+            <option value="NO">NO</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estado de la Carta</label>
+          <select id="ctrlEstadoCarta">
+            <option value="">-- Seleccione --</option>
+            <option value="SOLICITADA">SOLICITADA</option>
+            <option value="ENTREGADA">ENTREGADA</option>
+            <option value="FIRMADA">FIRMADA</option>
+            <option value="NO FIRMADA">NO FIRMADA</option>
+          </select>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="saveControlAgente()">✅ Guardar</button>
+        <button class="btn btn-secondary" onclick="closeControlModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HHEE Modal -->
+  <div id="hheeModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">⏱️ Registro de Horas Extras</div>
+      <div class="modal-subtitle">Indica el agente y el tipo de carga de HHEE.</div>
+      <div class="form-group">
+        <label>RUT</label>
+        <input type="text" id="hheeRut" placeholder="Ej: 12345678-9" style="text-transform:uppercase;">
+      </div>
+      <div class="form-group">
+        <label>Apellido / Nombre</label>
+        <input type="text" id="hheeNombre" placeholder="Nombre completo" style="text-transform:uppercase;">
+      </div>
+      <div class="form-group">
+        <label>Tipo de Carga</label>
+        <select id="hheeTipo">
+          <option value="POR AGENTE">📝 Por Agente</option>
+          <option value="SUPERVISOR-CDO">👔 Supervisores / CDO</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="saveHHEE()">✅ Guardar</button>
+        <button class="btn btn-secondary" onclick="closeHHEEModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reportes Modal -->
+  <div id="reportesModal" class="modal-overlay" onclick="if(event.target===this) closeReportesModal()">
+    <div class="modal-content">
+      <div class="modal-title">📋 Resumen del Reporte</div>
+      <div class="modal-subtitle">Copie el texto a continuación para compartir el cierre de turno</div>
+      <textarea id="reportesTextArea" readonly></textarea>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button type="button" class="btn btn-secondary" onclick="closeReportesModal()">Cerrar</button>
+        <button type="button" class="btn btn-accent" onclick="copyReporteText()">📋 Copiar Texto</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2026 CargoWeb. Todos los derechos reservados.</p>
+  </footer>
+
+  <script src="js/app.js"></script>
+  <script>
+    const PAGE_SIZE = 20;
+    let allSheetData = [];
+    let currentPage = 1;
+
+    function gatekeeperAdmin() {
+      const pw = localStorage.getItem('cargoAdminPass');
+      if (pw === 'cargo2026.') {
+        showAdminView();
+      } else {
+        switchView('login');
+      }
+    }
+
+    function validateAdminLogin() {
+      const input = document.getElementById('adminPassword').value;
+      const errorEl = document.getElementById('loginError');
+      const remember = document.getElementById('rememberPassword').checked;
+      if (input === 'cargo2026.') {
+        if (remember) {
+          localStorage.setItem('cargoAdminPass', input);
+        } else {
+          localStorage.removeItem('cargoAdminPass');
+        }
+        showAdminView();
+      } else {
+        errorEl.textContent = 'Contraseña incorrecta.';
+        document.getElementById('adminPassword').value = '';
+        document.getElementById('adminPassword').focus();
+      }
+    }
+
+    function checkRememberedPassword() {
+      const pw = localStorage.getItem('cargoAdminPass');
+      if (pw === 'cargo2026.') {
+        showAdminView();
+      }
+    }
+
+    function showAdminView() {
+      document.getElementById('view-login').classList.remove('active');
+      document.getElementById('view-admin').classList.add('active');
+      document.getElementById('navAdminBtn').classList.add('active');
+      loadForms();
+      loadAirlinesCatalog();
+    }
+
+    function switchAdminTab(tabName, btn) {
+      const subViews = document.querySelectorAll('.sub-view');
+      subViews.forEach(v => v.classList.remove('active'));
+      const target = document.getElementById('admin-' + tabName);
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.sub-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+      if (tabName === 'db') loadForms();
+      if (tabName === 'config') loadAirlinesCatalog();
+    }
+
+    function switchPlanificacionTab(tabName, btn) {
+      const subViews = document.querySelectorAll('.admin-sub-view');
+      subViews.forEach(v => v.classList.remove('active'));
+      const target = document.getElementById('planificacion-' + tabName);
+      if (target) target.classList.add('active');
+      document.querySelectorAll('.admin-sub-tab').forEach(t => t.classList.remove('active'));
+      btn.classList.add('active');
+    }
+
+    async function loadForms() {
+      const tbody = document.getElementById('tableBody');
+      const thead = document.getElementById('tableHeaders');
+      const alertBox = document.getElementById('formsAlert');
+      const paginationInfo = document.getElementById('paginationInfo');
+      const paginationControls = document.getElementById('paginationControls');
+
+      alertBox.className = 'alert';
+      alertBox.textContent = '';
+      tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Cargando registros desde Google Sheets...</td></tr>';
+      paginationInfo.textContent = '—';
+      paginationControls.innerHTML = '';
+
+      try {
+        const data = await fetchSheetData();
+        allSheetData = data;
+        currentPage = 1;
+        renderTable(data, 0, PAGE_SIZE);
+        renderPagination(data.length, PAGE_SIZE);
+      } catch (error) {
+        console.error('Error cargando datos del sheet:', error);
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-muted);">Error al cargar datos del Google Sheet. Verifica que la hoja "DATABASE" exista y esté compartida públicamente.</td></tr>';
+        paginationInfo.textContent = '—';
+        paginationControls.innerHTML = '';
+      }
+    }
+
+    function fetchSheetData() {
+      return new Promise(function(resolve, reject) {
+        fetch(GAS_URL + '?action=getAll')
+          .then(function(response) {
+            if (!response.ok) throw new Error('Network error');
+            return response.json();
+          })
+          .then(function(result) {
+            if (!result.success) throw new Error(result.error || 'Unknown error');
+            resolve(result.data || []);
+          })
+          .catch(function(error) {
+            reject(error);
+          });
+      });
+    }
+
+    function renderTable(data, start, count) {
+      var tbody = document.getElementById('tableBody');
+      var thead = document.getElementById('tableHeaders');
+      var slice = data.slice(start, start + count);
+
+      thead.innerHTML = '<tr>' +
+        '<th>Fecha Registro</th>' +
+        '<th>Hora Registro</th>' +
+        '<th>Operación</th>' +
+        '<th>Aerolínea</th>' +
+        '<th>Vuelo</th>' +
+        '<th>ETA/ETD</th>' +
+        '<th>Puerta</th>' +
+        '<th>Hora Inicio</th>' +
+        '<th>Hora Término</th>' +
+        '<th>Total Asistencias</th>' +
+        '<th>Nombre Pasajero</th>' +
+        '<th>Atendido Por</th>' +
+        '</tr>';
+
+      if (slice.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="12" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">No hay registros</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = slice.map(function(row, idx) {
+        var globalIdx = start + idx;
+        var fecha = formatDate(row['Fecha Registro'] || '');
+        var horaRegistro = formatDate(row['Hora Registro'] || '');
+        var operacion = row['Operación'] || '';
+        var aerolinea = row['Aerolínea'] || '';
+        var vuelo = row['Vuelo'] || '';
+        var etaEtd = formatDate(row['ETA/ETD'] || '');
+        var puerta = row['Puerta'] || '';
+        var horaInicio = formatDate(row['Hora Inicio'] || '');
+        var horaTermino = formatDate(row['Hora Término'] || '');
+        var totalAsistencias = row['Total Asistencias'] || '';
+        var pasajero = row['Nombre Pasajero'] || '';
+        var atendidoPor = row['Atendido Por'] || '';
+        return '<tr>' +
+          '<td>' + escapeHtml(fecha) + '</td>' +
+          '<td>' + escapeHtml(horaRegistro) + '</td>' +
+          '<td>' + escapeHtml(operacion) + '</td>' +
+          '<td>' + escapeHtml(aerolinea) + '</td>' +
+          '<td>' + escapeHtml(vuelo) + '</td>' +
+          '<td>' + escapeHtml(etaEtd) + '</td>' +
+          '<td>' + escapeHtml(puerta) + '</td>' +
+          '<td>' + escapeHtml(horaInicio) + '</td>' +
+          '<td>' + escapeHtml(horaTermino) + '</td>' +
+          '<td>' + escapeHtml(String(totalAsistencias)) + '</td>' +
+          '<td>' + escapeHtml(pasajero) + '</td>' +
+          '<td>' + escapeHtml(atendidoPor) + '</td>' +
+          '</tr>';
+      }).join('');
+    }
+
+    function renderPagination(total, pageSize) {
+      var paginationInfo = document.getElementById('paginationInfo');
+      var paginationControls = document.getElementById('paginationControls');
+      var totalPages = Math.ceil(total / pageSize) || 1;
+
+      paginationInfo.textContent = 'Página ' + currentPage + ' de ' + totalPages + ' (' + total + ' registros)';
+
+      var html = '';
+      html += '<button class="btn btn-ghost btn-sm" onclick="goToPage(1)"' + (currentPage === 1 ? ' disabled' : '') + '>⏮</button>';
+      html += '<button class="btn btn-ghost btn-sm" onclick="goToPage(' + (currentPage - 1) + ')"' + (currentPage === 1 ? ' disabled' : '') + '>◀</button>';
+
+      var startPage = Math.max(1, currentPage - 2);
+      var endPage = Math.min(totalPages, currentPage + 2);
+      for (var i = startPage; i <= endPage; i++) {
+        html += '<button class="btn btn-sm ' + (i === currentPage ? 'btn-accent' : 'btn-ghost') + '" onclick="goToPage(' + i + ')">' + i + '</button>';
+      }
+
+      html += '<button class="btn btn-ghost btn-sm" onclick="goToPage(' + (currentPage + 1) + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>▶</button>';
+      html += '<button class="btn btn-ghost btn-sm" onclick="goToPage(' + totalPages + ')"' + (currentPage === totalPages ? ' disabled' : '') + '>⏭</button>';
+
+      paginationControls.innerHTML = html;
+    }
+
+    function goToPage(page) {
+      var totalPages = Math.ceil(allSheetData.length / PAGE_SIZE) || 1;
+      if (page < 1 || page > totalPages) return;
+      currentPage = page;
+      renderTable(allSheetData, (page - 1) * PAGE_SIZE, PAGE_SIZE);
+      renderPagination(allSheetData.length, PAGE_SIZE);
+    }
+
+    function applyFilters() {
+      var dateFilter = document.getElementById('filter-date').value;
+      var airlineFilter = document.getElementById('filter-airline-flight').value.toLowerCase();
+      var paxFilter = document.getElementById('filter-pax-agent').value.toLowerCase();
+      var rows = document.querySelectorAll('#tableBody tr');
+      var visible = 0;
+      rows.forEach(function(row) {
+        var text = row.textContent.toLowerCase();
+        var matchDate = !dateFilter || text.includes(dateFilter);
+        var matchAirline = !airlineFilter || text.includes(airlineFilter);
+        var matchPax = !paxFilter || text.includes(paxFilter);
+        row.style.display = (matchDate && matchAirline && matchPax) ? '' : 'none';
+        if (row.style.display !== 'none') visible++;
+      });
+      document.getElementById('info-strip-results').style.display = 'flex';
+      document.getElementById('info-strip-text').textContent = 'Mostrando ' + visible + ' de ' + rows.length + ' registros';
+    }
+
+    window.clearFilters = function() {
+      document.getElementById('filter-date').value = '';
+      document.getElementById('filter-airline-flight').value = '';
+      document.getElementById('filter-pax-agent').value = '';
+      applyFilters();
+    };
+
+    function loadAirlinesCatalog() {
+      var container = document.getElementById('adminAirlinesUI');
+      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
+      if (airlines.length === 0) {
+        container.innerHTML = '<div class="hint-box">No hay aerolíneas en el catálogo.</div>';
+        return;
+      }
+      container.innerHTML = airlines.map(function(a, i) {
+        return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span>' + escapeHtml(a) + '</span>' +
+          '<button class="btn btn-danger btn-sm" onclick="removeAirline(' + i + ')">✕</button>' +
+          '</div>';
+      }).join('');
+    }
+
+    window.addNewAirlineToList = function() {
+      var input = document.getElementById('newAirlineName');
+      var name = input.value.trim().toUpperCase();
+      if (!name) return;
+      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
+      if (airlines.indexOf(name) !== -1) {
+        alert('La aerolínea ya existe en el catálogo.');
+        return;
+      }
+      airlines.push(name);
+      localStorage.setItem('cargoAirlines', JSON.stringify(airlines));
+      input.value = '';
+      loadAirlinesCatalog();
+    };
+
+    window.removeAirline = function(index) {
+      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
+      airlines.splice(index, 1);
+      localStorage.setItem('cargoAirlines', JSON.stringify(airlines));
+      loadAirlinesCatalog();
+    };
+
+    window.pushAirlinesToServer = async function() {
+      var client = window.supabaseClient;
+      if (!client) { alert('Supabase no disponible'); return; }
+      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
+      var result = await client.from('configuracion').upsert({ key: 'airlines', value: airlines }, { onConflict: 'key' });
+      if (result.error) { alert('Error al guardar: ' + result.error.message); return; }
+      alert('Catálogo de aerolíneas guardado.');
+    };
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      var div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatDate(value) {
+      if (!value) return '';
+      var str = String(value).trim();
+      if (str.length === 10 && str.charAt(2) === '/' && str.charAt(5) === '/') {
+        return str;
+      }
+      var d = new Date(str);
+      if (isNaN(d.getTime())) return str;
+      var year = d.getUTCFullYear();
+      if (year === 1899) {
+        var hours = String(d.getUTCHours()).padStart(2, '0');
+        var minutes = String(d.getUTCMinutes()).padStart(2, '0');
+        return hours + ':' + minutes;
+      }
+      var day = String(d.getUTCDate()).padStart(2, '0');
+      var month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      return day + '/' + month + '/' + year;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      checkRememberedPassword();
+    });
+  </script>
+</body>
+</html>
