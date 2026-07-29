@@ -28,6 +28,25 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'saveAgents') {
+      var agents = body.agents || [];
+      var agentSheet = ss.getSheetByName('AGENTES');
+      if (!agentSheet) {
+        agentSheet = ss.insertSheet('AGENTES');
+      }
+      if (agentSheet.getLastRow() === 0) {
+        agentSheet.getRange(1, 1, 1, 4).setValues([['RUT', 'Nombre', 'Cargo', 'Proximos Turnos']]);
+      }
+      if (agents.length) {
+        var agentRows = agents.map(function(a) {
+          return [a.rut || '', a.nombre || '', a.cargo || '', a.proximosTurnos || ''];
+        });
+        agentSheet.getRange(agentSheet.getLastRow() + 1, 1, agentRows.length, agentRows[0].length).setValues(agentRows);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Agentes guardados' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     if (action === 'deleteRow') {
       var sheet = ss.getSheetByName('DATABASE') || ss.getSheets()[0];
       var rowIndex = body.rowIndex;

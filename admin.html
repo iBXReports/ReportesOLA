@@ -12,7 +12,7 @@
 </head>
 <body>
   <nav class="nav">
-    <a href="index.html" class="nav-brand">✈️ <span>CargoWeb</span></a>
+    <a href="index.html" class="nav-brand">📦 <span>CargoWeb</span></a>
     <div class="nav-right">
       <div class="nav-tabs" id="navTabs">
         <button class="nav-tab" onclick="location.href='index.html'">📄 Formulario</button>
@@ -58,6 +58,7 @@
             <div class="card-title">📊 Base de Datos — Registros de Formularios</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-ghost btn-sm" id="refreshForms" onclick="loadForms()">🔄 Sincronizar</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.open('https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc', '_blank')">📊 Abrir Hoja Google</button>
             </div>
           </div>
           <div id="formsAlert" class="alert"></div>
@@ -448,19 +449,21 @@
                 <label>Nombre de la aerolínea</label>
                 <input type="text" id="newAirlineName" placeholder="Ej: LATAM" style="text-transform:uppercase;">
               </div>
-              <button class="btn btn-accent btn-full" onclick="addNewAirlineToList()">+ Agregar al Catálogo</button>
+              <button class="btn btn-accent btn-full" onclick="addNewAirline()">+ Agregar Aerolínea</button>
               <div class="hint-box">
                 <strong>ℹ️ Instrucciones</strong><br>
                 1. Ingrese el nombre de la aerolínea arriba.<br>
-                2. Presione "+ Agregar al Catálogo".<br>
-                3. Para eliminar una aerolínea presione ✕ junto a su nombre.<br>
-                4. Confirme los cambios con el botón verde.
+                2. Presione "+ Agregar Aerolínea".<br>
+                3. Se creará una nueva hoja en el Google Spreadsheet con ese nombre.<br>
+                4. Para eliminar una aerolínea presione ✕ junto a su nombre.<br>
+                5. Se le preguntará 3 veces si realmente desea eliminarla.<br>
+                6. Al confirmar, se borrarán todos los registros de esa aerolínea.
               </div>
             </div>
             <div>
               <h2 style="font-size:1em;color:var(--text);border-bottom:1px solid var(--border);padding-bottom:8px;">✈️ Catálogo de Aerolíneas</h2>
               <div class="list-container" id="adminAirlinesUI"></div>
-              <button class="btn btn-success btn-full" id="btn-save-airlines" onclick="pushAirlinesToServer()">✅ Confirmar Catálogo</button>
+              <button class="btn btn-secondary btn-full" onclick="loadAirlinesCatalog()">🔄 Actualizar Catálogo</button>
             </div>
           </div>
         </div>
@@ -788,6 +791,7 @@
     const PAGE_SIZE = 20;
     let allSheetData = [];
     let currentPage = 1;
+    const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc';
 
     function gatekeeperAdmin() {
       const pw = localStorage.getItem('cargoAdminPass');
@@ -986,62 +990,119 @@
       var dateFilter = document.getElementById('filter-date').value;
       var airlineFilter = document.getElementById('filter-airline-flight').value.toLowerCase();
       var paxFilter = document.getElementById('filter-pax-agent').value.toLowerCase();
-      var rows = document.querySelectorAll('#tableBody tr');
-      var visible = 0;
-      rows.forEach(function(row) {
-        var text = row.textContent.toLowerCase();
-        var matchDate = !dateFilter || text.includes(dateFilter);
-        var matchAirline = !airlineFilter || text.includes(airlineFilter);
-        var matchPax = !paxFilter || text.includes(paxFilter);
-        row.style.display = (matchDate && matchAirline && matchPax) ? '' : 'none';
-        if (row.style.display !== 'none') visible++;
-      });
+      var filtered = allSheetData;
+      if (dateFilter) {
+        filtered = filtered.filter(function(row) {
+          var fecha = row['Fecha Registro'] || '';
+          return fecha === dateFilter || fecha.includes(dateFilter);
+        });
+      }
+      if (airlineFilter) {
+        filtered = filtered.filter(function(row) {
+          var airline = (row['Aerol\u00ednea'] || row['Aerolinea'] || '').toLowerCase();
+          var vuelo = (row['Vuelo'] || '').toLowerCase();
+          return airline.includes(airlineFilter) || vuelo.includes(airlineFilter);
+        });
+      }
+      if (paxFilter) {
+        filtered = filtered.filter(function(row) {
+          var pax = (row['Nombre Pasajero'] || row['Pasajero'] || '').toLowerCase();
+          var agent = (row['Atendido Por'] || row['Agente'] || '').toLowerCase();
+          return pax.includes(paxFilter) || agent.includes(paxFilter);
+        });
+      }
+      currentPage = 1;
+      renderTable(filtered, 0, PAGE_SIZE);
+      renderPagination(filtered.length, PAGE_SIZE);
       document.getElementById('info-strip-results').style.display = 'flex';
-      document.getElementById('info-strip-text').textContent = 'Mostrando ' + visible + ' de ' + rows.length + ' registros';
+      document.getElementById('info-strip-text').textContent = 'Mostrando ' + filtered.length + ' de ' + allSheetData.length + ' registros';
     }
 
     window.clearFilters = function() {
       document.getElementById('filter-date').value = '';
       document.getElementById('filter-airline-flight').value = '';
       document.getElementById('filter-pax-agent').value = '';
-      applyFilters();
+      currentPage = 1;
+      renderTable(allSheetData, 0, PAGE_SIZE);
+      renderPagination(allSheetData.length, PAGE_SIZE);
+      document.getElementById('info-strip-results').style.display = 'flex';
+      document.getElementById('info-strip-text').textContent = 'Mostrando ' + allSheetData.length + ' de ' + allSheetData.length + ' registros';
     };
 
     function loadAirlinesCatalog() {
       var container = document.getElementById('adminAirlinesUI');
-      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
-      if (airlines.length === 0) {
-        container.innerHTML = '<div class="hint-box">No hay aerolíneas en el catálogo.</div>';
-        return;
-      }
-      container.innerHTML = airlines.map(function(a, i) {
-        return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
-          '<span>' + escapeHtml(a) + '</span>' +
-          '<button class="btn btn-danger btn-sm" onclick="removeAirline(' + i + ')">✕</button>' +
-          '</div>';
-      }).join('');
+      container.innerHTML = '<div class="hint-box">Cargando aerolíneas...</div>';
+      fetch(GAS_URL + '?action=getAirlines')
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+          var airlines = result.success ? (result.data || []) : [];
+          if (airlines.length === 0) {
+            container.innerHTML = '<div class="hint-box">No hay aerolíneas en el catálogo.</div>';
+            return;
+          }
+          container.innerHTML = airlines.map(function(a, i) {
+            var name = typeof a === 'object' ? (a.nombre || a.name || a.aerolínea || a.aerolinea || a.airline || JSON.stringify(a)) : a;
+            return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
+              '<span>' + escapeHtml(name) + '</span>' +
+              '<button class="btn btn-danger btn-sm" onclick="removeAirline(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">✕</button>' +
+              '</div>';
+          }).join('');
+        })
+        .catch(function(err) {
+          console.error('Error cargando aerolíneas:', err);
+          container.innerHTML = '<div class="hint-box">Error al cargar aerolíneas.</div>';
+        });
     }
 
-    window.addNewAirlineToList = function() {
+    window.addNewAirline = function() {
       var input = document.getElementById('newAirlineName');
       var name = input.value.trim().toUpperCase();
       if (!name) return;
-      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
-      if (airlines.indexOf(name) !== -1) {
-        alert('La aerolínea ya existe en el catálogo.');
-        return;
-      }
-      airlines.push(name);
-      localStorage.setItem('cargoAirlines', JSON.stringify(airlines));
-      input.value = '';
-      loadAirlinesCatalog();
+      if (!confirm('¿Está seguro de crear la aerolínea "' + name + '"? Se creará una nueva hoja en el Google Spreadsheet.')) return;
+      fetch(GAS_URL + '?action=createSheet&name=' + encodeURIComponent(name))
+        .then(function(r) { return r.json(); })
+        .then(function(result) {
+          if (result.success) {
+            alert('Aerolínea "' + name + '" creada exitosamente con una nueva hoja en el Google Spreadsheet.');
+            input.value = '';
+            loadAirlinesCatalog();
+          } else {
+            alert('Error al crear la aerolínea: ' + (result.error || 'Error desconocido'));
+          }
+        })
+        .catch(function(err) {
+          console.error('Error creando aerolínea:', err);
+          alert('Error al crear la aerolínea.');
+        });
     };
 
-    window.removeAirline = function(index) {
-      var airlines = JSON.parse(localStorage.getItem('cargoAirlines') || '[]');
-      airlines.splice(index, 1);
-      localStorage.setItem('cargoAirlines', JSON.stringify(airlines));
-      loadAirlinesCatalog();
+    window.removeAirline = function(airlineName) {
+      var count = 0;
+      function confirmDelete() {
+        count++;
+        if (count === 1) {
+          if (!confirm('¿Está seguro de que desea eliminar la aerolínea "' + airlineName + '"? Esto eliminará TODOS los registros de esta aerolínea. (Intento ' + count + '/3)')) return;
+        } else if (count === 2) {
+          if (!confirm('¿Última oportunidad. ¿Realmente desea eliminar la aerolínea "' + airlineName + '" y todos sus registros? (Intento ' + count + '/3)')) return;
+        } else if (count === 3) {
+          if (!confirm('¿CONFIRMACIÓN FINAL? ¿Está absolutamente seguro de que desea eliminar la aerolínea "' + airlineName + '"? TODOS los registros se borrarán permanentemente. (Intento ' + count + '/3)')) return;
+        }
+        fetch(GAS_URL + '?action=deleteAirlineRecords&airline=' + encodeURIComponent(airlineName))
+          .then(function(r) { return r.json(); })
+          .then(function(result) {
+            if (result.success) {
+              alert('Aerolínea "' + airlineName + '" eliminada exitosamente. Se han borrado todos los registros asociados.');
+              loadAirlinesCatalog();
+            } else {
+              alert('Error al eliminar la aerolínea: ' + (result.error || 'Error desconocido'));
+            }
+          })
+          .catch(function(err) {
+            console.error('Error eliminando aerolínea:', err);
+            alert('Error al eliminar la aerolínea.');
+          });
+      }
+      confirmDelete();
     };
 
     window.pushAirlinesToServer = async function() {

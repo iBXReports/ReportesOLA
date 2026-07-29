@@ -1,7 +1,7 @@
 // ⚠️ PEGA AQUÍ LA URL DEL WEB APP DE GOOGLE APPS SCRIPT
 // Spreadsheet destino: https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc
 // Ejemplo de URL: https://script.google.com/macros/s/XXXXXXX/exec
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzheyREUEN7VzpUsbCEpxYTC4RNOGNMTgzXHqFx5e7Hw20WsmMcRLU4RvFlu7evgAUomg/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxyTsXeuFqvwiTWk4YzmuyLqtNMF2uPq6xI4iXoXsU4MiNZOvTJawGYScETGwvoe-nEzw/exec';
 
 function initSupabase() {
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
@@ -326,8 +326,10 @@ function applyThemeLabel() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  const client = initSupabase();
-  window.supabaseClient = client;
+  if (!window.supabaseClient) {
+    const client = initSupabase();
+    window.supabaseClient = client;
+  }
   initTheme();
   applyThemeLabel();
   loadOfflineAirlines();
