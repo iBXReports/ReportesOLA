@@ -1,7 +1,7 @@
 // ⚠️ PEGA AQUÍ LA URL DEL WEB APP DE GOOGLE APPS SCRIPT
 // Spreadsheet destino: https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc
 // Ejemplo de URL: https://script.google.com/macros/s/XXXXXXX/exec
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxyTsXeuFqvwiTWk4YzmuyLqtNMF2uPq6xI4iXoXsU4MiNZOvTJawGYScETGwvoe-nEzw/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzYnlQBkdWwTPeCZP9Oh96_GwtKAawPNLw1P3-h7CzMNc5N1WTCw6HFGlyf24iPqp7MIg/exec';
 
 function initSupabase() {
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
