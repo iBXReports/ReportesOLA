@@ -1,8 +1,14 @@
+var SPREADSHEET_ID = '13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA';
+
+function getSpreadsheet() {
+  return SpreadsheetApp.openById(SPREADSHEET_ID);
+}
+
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     var action = body.action || 'write';
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getSpreadsheet();
 
     if (action === 'saveAirlines') {
       var configSheet = ss.getSheetByName('CONFIG') || ss.getSheets()[0];
@@ -44,6 +50,53 @@ function doPost(e) {
         agentSheet.getRange(agentSheet.getLastRow() + 1, 1, agentRows.length, agentRows[0].length).setValues(agentRows);
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Agentes guardados' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'saveDotacion') {
+      var dotacionSheet = ss.getSheetByName('DOTACION');
+      if (!dotacionSheet) {
+        dotacionSheet = ss.insertSheet('DOTACION');
+        dotacionSheet.getRange(1, 1, 1, 2).setValues([['Fecha', 'Datos']]);
+      }
+      var fecha = body.fecha;
+      var datos = body.datos;
+      if (!fecha || !datos) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Faltan parámetros' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var data = dotacionSheet.getDataRange().getValues();
+      var found = false;
+      for (var i = 1; i < data.length; i++) {
+        if (data[i][0] === fecha) {
+          dotacionSheet.getRange(i + 1, 2).setValue(JSON.stringify(datos));
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        dotacionSheet.appendRow([fecha, JSON.stringify(datos)]);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Dotación guardada' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'clearDotacion') {
+      var fecha = body.fecha;
+      var dotacionSheet = ss.getSheetByName('DOTACION');
+      if (!dotacionSheet || !fecha) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'No encontrado' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var data = dotacionSheet.getDataRange().getValues();
+      for (var i = data.length - 1; i >= 1; i--) {
+        if (data[i][0] === fecha) {
+          dotacionSheet.deleteRow(i + 1);
+          return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Dotación eliminada' }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'No había datos' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -165,7 +218,29 @@ function doPost(e) {
 
 function doGet(e) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getSpreadsheet();
+    var action = e.parameter.action;
+
+    if (action === 'getDotacion') {
+      var fecha = e.parameter.fecha;
+      var dotacionSheet = ss.getSheetByName('DOTACION');
+      if (!dotacionSheet || !fecha) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var dotData = dotacionSheet.getDataRange().getValues();
+      for (var j = 1; j < dotData.length; j++) {
+        if (dotData[j][0] === fecha) {
+          var parsed = [];
+          try { parsed = JSON.parse(dotData[j][1] || '[]'); } catch (err) { parsed = []; }
+          return ContentService.createTextOutput(JSON.stringify({ success: true, data: parsed }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var sheet = ss.getSheetByName('DATABASE') || ss.getSheets()[0];
     var data = sheet.getDataRange().getValues();
     if (data.length === 0) {

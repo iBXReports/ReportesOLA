@@ -1,5 +1,5 @@
 // ⚠️ PEGA AQUÍ LA URL DEL WEB APP DE GOOGLE APPS SCRIPT
-// Spreadsheet destino: https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc
+// Spreadsheet destino: https://docs.google.com/spreadsheets/d/13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA
 // Ejemplo de URL: https://script.google.com/macros/s/XXXXXXX/exec
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCZVLoVaBTMQFK-4WUd-87jFZpJQ6l3-kLSL_t7lrdFXuLaW9L_46AcQyEH_gPG4Bp_w/exec';
 
@@ -335,4 +335,229 @@ document.addEventListener('DOMContentLoaded', () => {
   loadOfflineAirlines();
   addAgentField();
   addPassengerRow();
+  // Inicializar fecha de dotación a hoy
+  const today = new Date().toISOString().slice(0, 10);
+  const dotacionFecha = document.getElementById('dotacionFecha');
+  if (dotacionFecha) {
+    dotacionFecha.value = today;
+    updateDotacionLabel(today);
+    loadDotacionData(today);
+  }
 });
+
+// ── Dotación Diaria ──────────────────────────────────────────
+function openDotacionPasteModal() {
+  const modal = document.getElementById('dotacionPasteModal');
+  if (modal) modal.classList.add('active');
+}
+
+function closeDotacionPasteModal() {
+  const modal = document.getElementById('dotacionPasteModal');
+  if (modal) modal.classList.remove('active');
+  const area = document.getElementById('dotacionPasteArea');
+  if (area) area.value = '';
+}
+
+function ingestDotacionPaste() {
+  const area = document.getElementById('dotacionPasteArea');
+  if (!area) return;
+  const text = area.value.trim();
+  if (!text) {
+    alert('No hay datos para insertar.');
+    return;
+  }
+
+  const rows = text.split('\n').map(line => line.split('\t'));
+  const tbody = document.getElementById('dotacionTableBody');
+  if (!tbody) return;
+
+  tbody.innerHTML = '';
+  rows.forEach(function(row) {
+    const tr = document.createElement('tr');
+    row.forEach(function(cell) {
+      const td = document.createElement('td');
+      td.contentEditable = true;
+      td.textContent = cell.trim();
+      td.addEventListener('blur', saveDotacionData);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+
+  closeDotacionPasteModal();
+  saveDotacionData();
+}
+
+function addDotacionRow() {
+  const tbody = document.getElementById('dotacionTableBody');
+  if (!tbody) return;
+  // Si hay un mensaje de "No hay dotación", limpiarlo primero
+  const placeholder = tbody.querySelector('td[colspan]');
+  if (placeholder) tbody.innerHTML = '';
+
+  const tr = document.createElement('tr');
+  for (let i = 0; i < 6; i++) {
+    const td = document.createElement('td');
+    td.contentEditable = true;
+    td.addEventListener('blur', saveDotacionData);
+    tr.appendChild(td);
+  }
+  tbody.appendChild(tr);
+  saveDotacionData();
+}
+
+function saveDotacionData() {
+  const date = document.getElementById('dotacionFecha')?.value;
+  if (!date) return;
+  const tbody = document.getElementById('dotacionTableBody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr')).map(tr => {
+    return Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
+  });
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'saveDotacion', fecha: date, datos: rows })
+  }).catch(function(err) {
+    console.error('Error guardando dotación:', err);
+  });
+}
+
+function loadDotacionData(date) {
+  const tbody = document.getElementById('dotacionTableBody');
+  if (!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">Cargando dotación...</td></tr>';
+
+  fetch(GAS_URL + '?action=getDotacion&fecha=' + encodeURIComponent(date))
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      if (result.success && result.data && result.data.length > 0) {
+        const rows = result.data;
+        tbody.innerHTML = '';
+        rows.forEach(function(row) {
+          const tr = document.createElement('tr');
+          row.forEach(function(cell) {
+            const td = document.createElement('td');
+            td.contentEditable = true;
+            td.textContent = cell;
+            td.addEventListener('blur', saveDotacionData);
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+      } else {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">No hay dotación para esta fecha. Use "Pegar desde Excel" o "Agregar Agente" para comenzar.</td></tr>';
+      }
+    })
+    .catch(function(err) {
+      console.error('Error cargando dotación:', err);
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);">Error al cargar dotación.</td></tr>';
+    });
+}
+
+function changeDotacionDate(value) {
+  loadDotacionData(value);
+  updateDotacionLabel(value);
+}
+
+function goToToday() {
+  const today = new Date().toISOString().slice(0, 10);
+  const input = document.getElementById('dotacionFecha');
+  if (input) {
+    input.value = today;
+    changeDotacionDate(today);
+  }
+}
+
+function updateDotacionLabel(date) {
+  const label = document.getElementById('dotacionFechaLabel');
+  if (label && date) {
+    const d = new Date(date + 'T00:00:00');
+    label.textContent = d.toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  }
+}
+
+function clearDotacionDiaria() {
+  if (!confirm('¿Está seguro de que desea limpiar la dotación de este día?')) return;
+  const date = document.getElementById('dotacionFecha')?.value;
+  if (!date) return;
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'clearDotacion', fecha: date })
+  }).catch(function(err) {
+    console.error('Error limpiando dotación:', err);
+  });
+
+  const tbody = document.getElementById('dotacionTableBody');
+  if (tbody) tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text-muted);font-style:italic;">No hay dotación para esta fecha.</td></tr>';
+}
+
+function exportDotacionDiariaExcel() {
+  const tbody = document.getElementById('dotacionTableBody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr')).map(tr => {
+    return Array.from(tr.querySelectorAll('td')).map(td => td.textContent.trim());
+  });
+  if (rows.length === 0) {
+    alert('No hay datos para exportar.');
+    return;
+  }
+  let csv = 'Col1,Col2,Col3,Col4,Col5,Col6\n';
+  rows.forEach(row => {
+    csv += row.map(c => '"' + c.replace(/"/g, '""') + '"').join(',') + '\n';
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'dotacion_' + (document.getElementById('dotacionFecha')?.value || 'export') + '.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function onDotacionFileChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const text = e.target.result;
+    const lines = text.split('\n');
+    const rows = lines.map(line => line.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+    const tbody = document.getElementById('dotacionTableBody');
+    if (tbody) {
+      tbody.innerHTML = '';
+      rows.forEach(row => {
+        const tr = document.createElement('tr');
+        row.forEach(cell => {
+          const td = document.createElement('td');
+          td.contentEditable = true;
+          td.textContent = cell;
+          td.addEventListener('blur', saveDotacionData);
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      saveDotacionData();
+    }
+  };
+  reader.readAsText(file);
+}
+
+function refreshDotacionActual() {
+  const enTurno = document.getElementById('enTurnoContainer');
+  const proximos = document.getElementById('proximosContainer');
+  if (enTurno) enTurno.innerHTML = '<div class="hint-box">No hay datos de turno disponibles.</div>';
+  if (proximos) proximos.innerHTML = '<div class="hint-box">No hay datos próximos.</div>';
+}
+
+// Guardar automáticamente al editar celdas de la tabla de dotación
+document.addEventListener('focusout', function(e) {
+  if (e.target.tagName === 'TD' && e.target.closest('#dotacionTable')) {
+    saveDotacionData();
+  }
+}, true);
