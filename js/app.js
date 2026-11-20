@@ -2,7 +2,7 @@
 // Spreadsheet vuelos/aerolineas/pasajeros: https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc
 // Spreadsheet dotacion/planificacion: https://docs.google.com/spreadsheets/d/13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA
 // Ejemplo de URL: https://script.google.com/macros/s/XXXXXXX/exec
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzwlG0xbiONfVBJw5OGU0DHhzEv7p4JkeRsPLZ9to4pq3ZngDNMheMua389kNUhu9wcnA/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw2a2oyiPnQCzzq_--E4GRWFV7ZGPvcbaeVeckvo3BvVsvvSQlke-qDufwrLQhfZ_7lkA/exec';
 
 function initSupabase() {
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
@@ -952,64 +952,73 @@ function ingestAgentesPaste() {
   startTimerLoop();
 }
 
-function saveAgentesTurnoToServer() {
+function serverPost(payload, onSuccess, onError) {
   fetch(GAS_URL, {
     method: 'POST',
-    mode: 'no-cors',
+    mode: 'cors',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'saveAgentesTurno',
-      fecha: ctrlFecha,
-      agentes: ctrlAgentes
-    })
-  }).catch(function(err) { console.error('Error guardando agentes:', err); });
+    body: JSON.stringify(payload)
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(result) {
+    if (result.success) {
+      if (onSuccess) onSuccess(result);
+    } else {
+      if (onError) onError(result.error || 'Error desconocido');
+      else alert('Error del servidor: ' + (result.error || 'desconocido'));
+    }
+  })
+  .catch(function(err) {
+    console.error('Error de red:', err);
+    if (onError) onError(err.toString());
+    else alert('No se pudo conectar con el servidor. Verifica que el GAS esté desplegado y la URL sea correcta.');
+  });
+}
+
+function saveAgentesTurnoToServer() {
+  serverPost({
+    action: 'saveAgentesTurno',
+    fecha: ctrlFecha,
+    agentes: ctrlAgentes
+  }, function() {
+    console.log('Agentes guardados en servidor');
+  });
 }
 
 function saveVueloTurnoToServer(vuelo) {
-  fetch(GAS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'saveVueloTurno',
-      vuelo: vuelo
-    })
-  }).catch(function(err) { console.error('Error guardando vuelo:', err); });
+  serverPost({
+    action: 'saveVueloTurno',
+    vuelo: vuelo
+  }, function() {
+    console.log('Vuelo guardado en servidor');
+  });
 }
 
 function saveAsignacionToServer(asig) {
-  fetch(GAS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      action: 'saveAsignacion',
-      asignacion: asig
-    })
-  }).catch(function(err) { console.error('Error guardando asignación:', err); });
+  serverPost({
+    action: 'saveAsignacion',
+    asignacion: asig
+  }, function() {
+    console.log('Asignación guardada en servidor');
+  });
 }
 
 function clearControlTurno() {
   if (!confirm('¿Está seguro de que desea limpiar todo el turno? Se borrarán agentes, vuelos y asignaciones.')) return;
-  fetch(GAS_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'clearTurno', fecha: ctrlFecha })
-  }).catch(function(err) { console.error('Error limpiando turno:', err); });
-
-  ctrlAgentes = [];
-  ctrlVuelos = [];
-  ctrlAsignaciones = [];
-  ctrlTimers = [];
-  renderCtrlResumen();
-  renderAgentesTabla();
-  renderVuelosTabla();
-  renderTimeline();
-  renderTimers();
-  renderConflictos();
-  if (ctrlTimerInterval) { clearInterval(ctrlTimerInterval); ctrlTimerInterval = null; }
-  alert('Turno limpiado.');
+  serverPost({ action: 'clearTurno', fecha: ctrlFecha }, function() {
+    ctrlAgentes = [];
+    ctrlVuelos = [];
+    ctrlAsignaciones = [];
+    ctrlTimers = [];
+    renderCtrlResumen();
+    renderAgentesTabla();
+    renderVuelosTabla();
+    renderTimeline();
+    renderTimers();
+    renderConflictos();
+    if (ctrlTimerInterval) { clearInterval(ctrlTimerInterval); ctrlTimerInterval = null; }
+    alert('Turno limpiado.');
+  });
 }
 
 function loadControlAgentesTurno() {
