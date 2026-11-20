@@ -80,8 +80,17 @@ async function syncAirlinesFromServer() {
   try {
     const resp = await fetch(GAS_URL + '?action=getAirlines');
     const result = await resp.json();
-    if (result.success && result.data && result.data.length > 0) {
-      globalAirlines = result.data;
+    if (result.success && result.data) {
+      const serverAirlines = result.data;
+      const merged = globalAirlines.slice();
+      serverAirlines.forEach(function(a) {
+        var name = typeof a === 'object' ? (a.nombre || a.name || a.aerolínea || a.aerolinea || a.airline || '') : a;
+        if (name && merged.indexOf(name) === -1) {
+          merged.push(name);
+        }
+      });
+      merged.sort();
+      globalAirlines = merged;
       localStorage.setItem('cargo_airlines_offline', JSON.stringify(globalAirlines));
       renderFormAirlinesDropdown();
     }

@@ -1051,11 +1051,19 @@
       fetch(GAS_URL + '?action=getAirlines')
         .then(function(r) { return r.json(); })
         .then(function(result) {
-          var airlines = result.success ? (result.data || []) : [];
-          if (airlines.length === 0) {
-            airlines = globalAirlines.slice();
-          }
-          renderAirlinesCatalog(airlines);
+          var serverAirlines = result.success ? (result.data || []) : [];
+          var merged = globalAirlines.slice();
+          serverAirlines.forEach(function(a) {
+            var name = typeof a === 'object' ? (a.nombre || a.name || a.aerolínea || a.aerolinea || a.airline || '') : a;
+            if (name && merged.indexOf(name) === -1) {
+              merged.push(name);
+            }
+          });
+          merged.sort();
+          globalAirlines = merged;
+          localStorage.setItem('cargo_airlines_offline', JSON.stringify(globalAirlines));
+          renderAirlinesCatalog(globalAirlines);
+          if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
         })
         .catch(function(err) {
           console.error('Error cargando aerolíneas:', err);
