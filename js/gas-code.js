@@ -1,19 +1,25 @@
-var SPREADSHEET_ID = '13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA';
+var FLIGHT_SPREADSHEET_ID = '1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc';
+var PLAN_SPREADSHEET_ID = '13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA';
 
-function getSpreadsheet() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+function getFlightSpreadsheet() {
+  return SpreadsheetApp.openById(FLIGHT_SPREADSHEET_ID);
+}
+
+function getPlanSpreadsheet() {
+  return SpreadsheetApp.openById(PLAN_SPREADSHEET_ID);
 }
 
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
     var action = body.action || 'write';
-    var ss = getSpreadsheet();
+    var flightSs = getFlightSpreadsheet();
+    var planSs = getPlanSpreadsheet();
 
     if (action === 'saveAirlines') {
-      var configSheet = ss.getSheetByName('CONFIG') || ss.getSheets()[0];
-      if (!ss.getSheetByName('CONFIG')) {
-        configSheet = ss.insertSheet('CONFIG');
+      var configSheet = flightSs.getSheetByName('CONFIG') || flightSs.getSheets()[0];
+      if (!flightSs.getSheetByName('CONFIG')) {
+        configSheet = flightSs.insertSheet('CONFIG');
       }
       configSheet.getRange('A1').setValue('key');
       configSheet.getRange('B1').setValue('value');
@@ -36,9 +42,9 @@ function doPost(e) {
 
     if (action === 'saveAgents') {
       var agents = body.agents || [];
-      var agentSheet = ss.getSheetByName('AGENTES');
+      var agentSheet = planSs.getSheetByName('AGENTES');
       if (!agentSheet) {
-        agentSheet = ss.insertSheet('AGENTES');
+        agentSheet = planSs.insertSheet('AGENTES');
       }
       if (agentSheet.getLastRow() === 0) {
         agentSheet.getRange(1, 1, 1, 4).setValues([['RUT', 'Nombre', 'Cargo', 'Proximos Turnos']]);
@@ -54,9 +60,9 @@ function doPost(e) {
     }
 
     if (action === 'saveDotacion') {
-      var dotacionSheet = ss.getSheetByName('DOTACION');
+      var dotacionSheet = planSs.getSheetByName('DOTACION');
       if (!dotacionSheet) {
-        dotacionSheet = ss.insertSheet('DOTACION');
+        dotacionSheet = planSs.insertSheet('DOTACION');
         dotacionSheet.getRange(1, 1, 1, 2).setValues([['Fecha', 'Datos']]);
       }
       var fecha = body.fecha;
@@ -83,7 +89,7 @@ function doPost(e) {
 
     if (action === 'clearDotacion') {
       var fecha = body.fecha;
-      var dotacionSheet = ss.getSheetByName('DOTACION');
+      var dotacionSheet = planSs.getSheetByName('DOTACION');
       if (!dotacionSheet || !fecha) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'No encontrado' }))
           .setMimeType(ContentService.MimeType.JSON);
@@ -101,7 +107,7 @@ function doPost(e) {
     }
 
     if (action === 'deleteRow') {
-      var sheet = ss.getSheetByName('DATABASE') || ss.getSheets()[0];
+      var sheet = flightSs.getSheetByName('DATABASE') || flightSs.getSheets()[0];
       var rowIndex = body.rowIndex;
       if (typeof rowIndex === 'number' && rowIndex > 1) {
         sheet.deleteRow(rowIndex);
@@ -111,7 +117,7 @@ function doPost(e) {
     }
 
     var registros = body.registros || [];
-    var sheet = ss.getSheetByName('DATABASE') || ss.getSheets()[0];
+    var sheet = flightSs.getSheetByName('DATABASE') || flightSs.getSheets()[0];
 
     if (sheet.getLastRow() === 0) {
       sheet.getRange(1, 1, 1, 14).setValues([[
@@ -182,9 +188,9 @@ function doPost(e) {
     sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
 
     Object.keys(rowsByAirline).forEach(function(name) {
-      var airlineSheet = ss.getSheetByName(name);
+      var airlineSheet = flightSs.getSheetByName(name);
       if (!airlineSheet) {
-        airlineSheet = ss.insertSheet(name);
+        airlineSheet = flightSs.insertSheet(name);
       }
       if (airlineSheet.getLastRow() === 0) {
         airlineSheet.getRange(1, 1, 1, 14).setValues([[
@@ -218,12 +224,13 @@ function doPost(e) {
 
 function doGet(e) {
   try {
-    var ss = getSpreadsheet();
+    var flightSs = getFlightSpreadsheet();
+    var planSs = getPlanSpreadsheet();
     var action = e.parameter.action;
 
     if (action === 'getDotacion') {
       var fecha = e.parameter.fecha;
-      var dotacionSheet = ss.getSheetByName('DOTACION');
+      var dotacionSheet = planSs.getSheetByName('DOTACION');
       if (!dotacionSheet || !fecha) {
         return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
           .setMimeType(ContentService.MimeType.JSON);
@@ -242,7 +249,7 @@ function doGet(e) {
     }
 
     if (action === 'getAirlines') {
-      var configSheet = ss.getSheetByName('CONFIG');
+      var configSheet = flightSs.getSheetByName('CONFIG');
       if (!configSheet || configSheet.getLastRow() === 0) {
         return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
           .setMimeType(ContentService.MimeType.JSON);
@@ -266,14 +273,14 @@ function doGet(e) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Falta nombre' }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      if (ss.getSheetByName(name)) {
+      if (flightSs.getSheetByName(name)) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'La hoja ya existe' }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      ss.insertSheet(name);
-      var configSheet2 = ss.getSheetByName('CONFIG');
+      flightSs.insertSheet(name);
+      var configSheet2 = flightSs.getSheetByName('CONFIG');
       if (!configSheet2) {
-        configSheet2 = ss.insertSheet('CONFIG');
+        configSheet2 = flightSs.insertSheet('CONFIG');
         configSheet2.getRange('A1').setValue('key');
         configSheet2.getRange('B1').setValue('value');
       }
@@ -305,7 +312,7 @@ function doGet(e) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Falta aerolínea' }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      var dbSheet = ss.getSheetByName('DATABASE');
+      var dbSheet = flightSs.getSheetByName('DATABASE');
       if (dbSheet && dbSheet.getLastRow() > 1) {
         var dbData = dbSheet.getDataRange().getValues();
         for (var n = dbData.length - 1; n >= 1; n--) {
@@ -314,11 +321,11 @@ function doGet(e) {
           }
         }
       }
-      var airSheet = ss.getSheetByName(airline);
+      var airSheet = flightSs.getSheetByName(airline);
       if (airSheet) {
-        ss.deleteSheet(airSheet);
+        flightSs.deleteSheet(airSheet);
       }
-      var configSheet3 = ss.getSheetByName('CONFIG');
+      var configSheet3 = flightSs.getSheetByName('CONFIG');
       if (configSheet3 && configSheet3.getLastRow() > 1) {
         var cfgData3 = configSheet3.getRange('A2:B' + configSheet3.getLastRow()).getValues();
         for (var p = 1; p < cfgData3.length; p++) {
@@ -335,7 +342,7 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    var sheet = ss.getSheetByName('DATABASE') || ss.getSheets()[0];
+    var sheet = flightSs.getSheetByName('DATABASE') || flightSs.getSheets()[0];
     var data = sheet.getDataRange().getValues();
     if (data.length === 0) {
       return ContentService.createTextOutput(JSON.stringify({ success: true, data: [], headers: [] }))

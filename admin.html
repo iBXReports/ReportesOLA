@@ -58,7 +58,7 @@
             <div class="card-title">📊 Base de Datos — Registros de Formularios</div>
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-ghost btn-sm" id="refreshForms" onclick="loadForms()">🔄 Sincronizar</button>
-              <button class="btn btn-ghost btn-sm" onclick="window.open('https://docs.google.com/spreadsheets/d/13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA', '_blank')">📊 Abrir Hoja Google</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.open('https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc', '_blank')">📊 Abrir Hoja Google</button>
             </div>
           </div>
           <div id="formsAlert" class="alert"></div>
@@ -791,7 +791,7 @@
     const PAGE_SIZE = 20;
     let allSheetData = [];
     let currentPage = 1;
-    const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA';
+    const SPREADSHEET_URL = 'https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc';
 
     function gatekeeperAdmin() {
       const pw = localStorage.getItem('cargoAdminPass');
