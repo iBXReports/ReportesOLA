@@ -362,6 +362,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDotacionLabel(today);
     loadDotacionData(today);
   }
+  // Cargar datos de control agentes al iniciar
+  setTimeout(function() {
+    loadControlAgentesTurno();
+  }, 500);
 });
 
 // ── Dotación Diaria ──────────────────────────────────────────
@@ -850,23 +854,53 @@ let ctrlFecha = new Date().toISOString().slice(0, 10);
 let ctrlTimerInterval = null;
 
 function parseTurnoM(turnoStr) {
-  if (!turnoStr || turnoStr.length < 5) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM' };
+  if (!turnoStr || turnoStr.length < 5) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'N', duracion: 24 };
   const s = turnoStr.replace(/[^0-9]/g, '');
-  if (s.length < 4) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM' };
-  let hh1 = parseInt(s.substring(0, 2));
-  let mm1 = parseInt(s.substring(2, 4));
-  let hh2 = hh1 + 8;
-  if (hh2 >= 24) hh2 -= 24;
-  let ampm1 = hh1 >= 12 ? 'PM' : 'AM';
-  let ampm2 = hh2 >= 12 ? 'PM' : 'AM';
-  let h1_12 = hh1 % 12; if (h1_12 === 0) h1_12 = 12;
-  let h2_12 = hh2 % 12; if (h2_12 === 0) h2_12 = 12;
-  return {
-    entrada: String(hh1).padStart(2, '0') + ':' + String(mm1).padStart(2, '0'),
-    salida: String(hh2).padStart(2, '0') + ':' + String(mm1).padStart(2, '0'),
-    entradaAMPM: String(h1_12).padStart(2, '0') + ':' + String(mm1).padStart(2, '0') + ' ' + ampm1,
-    salidaAMPM: String(h2_12).padStart(2, '0') + ':' + String(mm1).padStart(2, '0') + ' ' + ampm2
-  };
+  if (s.length < 4) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'N', duracion: 24 };
+
+  const tipo = turnoStr.charAt(0).toUpperCase();
+  const hh = parseInt(s.substring(0, 2));
+  const mm = parseInt(s.substring(2, 4));
+
+  let entrada, salida, entradaAMPM, salidaAMPM, duracion;
+
+  if (tipo === 'N') {
+    // N0110 = noche, ingresa 01:00 AM, sale 10:00 AM (siguiente día)
+    entrada = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    salida = String(hh + 9).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    entradaAMPM = String(hh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' AM';
+    const sH = hh + 9;
+    salidaAMPM = String(sH % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sH >= 12 && sH < 24 ? ' AM' : ' PM');
+    duracion = 9;
+  } else if (tipo === 'M') {
+    // M0413 = mañana, ingresa 04:00 AM, sale 13:00 PM (mismo día)
+    entrada = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    const sH = hh + 9;
+    salida = String(sH).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    entradaAMPM = String(hh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' AM';
+    salidaAMPM = String(sH % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sH >= 12 && sH < 24 ? ' PM' : ' AM');
+    duracion = 9;
+  } else if (tipo === 'T') {
+    // T1222 = tarde, ingresa 12:00 PM, sale 22:00 PM (mismo día)
+    const eh = hh === 12 ? 12 : hh;
+    const sh = hh + 10;
+    entrada = String(eh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    salida = String(sh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    entradaAMPM = String(eh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' PM';
+    const sH12 = sh % 12 || 12;
+    salidaAMPM = String(sH12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sh >= 12 && sh < 24 ? ' PM' : ' AM');
+    duracion = 10;
+  } else {
+    // Fallback: asumir mañana
+    entrance = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    salida = String(hh + 9).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+    entradaAMPM = String(hh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' AM';
+    const sH = hh + 9;
+    salidaAMPM = String(sH % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sH >= 12 && sH < 24 ? ' PM' : ' AM');
+    duracion = 9;
+  }
+
+  return { entrada, salida, entradaAMPM, salidaAMPM, tipo: tipo, duracion: duracion };
 }
 
 function openPasteAgentesModal() {
@@ -904,14 +938,15 @@ function ingestAgentesPaste() {
       nombre: nombre,
       rol: rol,
       turno: turno,
-      estado: 'disponible',
+      estado: 'presente',
       esLATAM: esLATAM,
       esOLA: esOLA,
       esSupervisor: false,
       vueloAsignado: null,
       tipoAsignacion: null,
       colacionTimer: null,
-      libreTimer: null
+      libreTimer: null,
+      horasExtendido: 0
     };
   }).filter(function(ag) { return ag.rut && ag.nombre; });
 
@@ -1007,14 +1042,15 @@ function loadControlAgentesTurno() {
           nombre: ag['Nombre'] || '',
           rol: ag['Rol'] || '',
           turno: parseTurnoM(ag['Turno Entrada'] || ''),
-          estado: 'disponible',
+          estado: ag['Estado'] || 'presente',
           esLATAM: ag['Es LATAM'] === 'SI',
           esOLA: ag['Es OLA'] === 'SI',
-          esSupervisor: false,
+          esSupervisor: ag['Es Supervisor'] === 'SI',
           vueloAsignado: null,
           tipoAsignacion: null,
           colacionTimer: null,
-          libreTimer: null
+          libreTimer: null,
+          horasExtendido: parseInt(ag['Horas Extendido']) || 0
         };
       });
     }
@@ -1157,7 +1193,7 @@ function estaEnTurno(agente, hora) {
 }
 
 function agenteDisponible(agente) {
-  if (agente.estado !== 'disponible') return false;
+  if (agente.estado !== 'presente' && agente.estado !== 'pendiente') return false;
   if (agente.libreTimer && Date.now() < agente.libreTimer) return false;
   if (agente.colacionTimer && Date.now() < agente.colacionTimer) return false;
   return true;
@@ -1207,6 +1243,14 @@ function autoAsignarTurno() {
       if (esLATAMFlight && !ag.esLATAM && !ag.esOLA) continue;
       if (!esLATAMFlight && !ag.esOLA && !ag.esLATAM) continue;
 
+      // Verificar horas extendidas: si el agente está extendido, puede tomar vuelos hasta su hora de salida extendida
+      if (ag.horasExtendido > 0) {
+        const [hs, ms] = ag.turno.salida.split(':').map(Number);
+        const salidaExtendida = hs + ag.horasExtendido;
+        const [hv, mv] = vuelo.hora.split(':').map(Number);
+        if (hv > salidaExtendida) continue;
+      }
+
       ag.estado = 'asignado';
       ag.vueloAsignado = vuelo.id;
       ag.tipoAsignacion = vuelo.tipo.toLowerCase();
@@ -1254,10 +1298,30 @@ function autoAsignarTurno() {
   alert('Asignación automática completada: ' + asignacionesRealizadas + ' asignaciones realizadas.');
 }
 
+function cambiarEstadoAgente(rut, nuevoEstado) {
+  const ag = ctrlAgentes.find(function(a) { return a.rut === rut; });
+  if (!ag) return;
+  ag.estado = nuevoEstado;
+  saveAgentesTurnoToServer();
+  renderAgentesTabla();
+  renderCtrlResumen();
+  renderConflictos();
+}
+
+function openExtendidoModal(rut) {
+  const ag = ctrlAgentes.find(function(a) { return a.rut === rut; });
+  if (!ag) return;
+  const horas = prompt('¿Cuántas horas está extendido el agente ' + ag.nombre + '?', ag.horasExtendido || '0');
+  if (horas === null) return;
+  ag.horasExtendido = parseFloat(horas) || 0;
+  saveAgentesTurnoToServer();
+  renderAgentesTabla();
+}
+
 function programarColaciones() {
   const now = new Date();
   ctrlAgentes.forEach(function(ag) {
-    if (ag.estado !== 'disponible' && ag.estado !== 'asignado') return;
+    if (ag.estado !== 'presente' && ag.estado !== 'pendiente' && ag.estado !== 'asignado') return;
     if (!ag.turno || !ag.turno.entrada) return;
 
     const [he, me] = ag.turno.entrada.split(':').map(Number);
@@ -1355,7 +1419,7 @@ function startTimerLoop() {
       if (ag.libreTimer && now >= ag.libreTimer) {
         ag.libreTimer = null;
         if (ag.estado === 'asignado' || ag.estado === 'libre') {
-          ag.estado = 'disponible';
+          ag.estado = 'presente';
           ag.vueloAsignado = null;
           ag.tipoAsignacion = null;
           changed = true;
@@ -1364,7 +1428,7 @@ function startTimerLoop() {
       if (ag.colacionTimer && now >= ag.colacionTimer) {
         ag.colacionTimer = null;
         if (ag.estado === 'colacion') {
-          ag.estado = 'disponible';
+          ag.estado = 'presente';
           ag.vueloAsignado = null;
           ag.tipoAsignacion = null;
           changed = true;
@@ -1396,13 +1460,15 @@ function renderCtrlResumen() {
   if (!container) return;
 
   const totalAgentes = ctrlAgentes.length;
-  const disponibles = ctrlAgentes.filter(function(a) { return a.estado === 'disponible' && (!a.libreTimer || Date.now() >= a.libreTimer); }).length;
+  const presentes = ctrlAgentes.filter(function(a) { return a.estado === 'presente'; }).length;
+  const ausentes = ctrlAgentes.filter(function(a) { return a.estado === 'ausente'; }).length;
+  const pendientes = ctrlAgentes.filter(function(a) { return a.estado === 'pendiente'; }).length;
   const asignados = ctrlAgentes.filter(function(a) { return a.estado === 'asignado'; }).length;
   const enColacion = ctrlAgentes.filter(function(a) { return a.estado === 'colacion'; }).length;
   const libres = ctrlAgentes.filter(function(a) { return a.estado === 'libre' || (a.libreTimer && Date.now() < a.libreTimer); }).length;
 
   const totalVuelos = ctrlVuelos.length;
-  const pendientes = ctrlVuelos.filter(function(v) { return v.estado === 'pendiente'; }).length;
+  const vuelosPendientes = ctrlVuelos.filter(function(v) { return v.estado === 'pendiente'; }).length;
   const enCurso = ctrlVuelos.filter(function(v) { return v.estado === 'en_curso'; }).length;
   const completados = ctrlVuelos.filter(function(v) { return v.estado === 'completado'; }).length;
 
@@ -1416,14 +1482,16 @@ function renderCtrlResumen() {
 
   container.innerHTML =
     '<div class="resumen-card"><div class="resumen-value">' + totalAgentes + '</div><div class="resumen-label">Agentes Totales</div></div>' +
-    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + disponibles + '</div><div class="resumen-label">🟢 Disponibles</div></div>' +
-    '<div class="resumen-card"><div class="resumen-value" style="color:var(--danger);">' + asignados + '</div><div class="resumen-label">🔴 Asignados</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + presentes + '</div><div class="resumen-label">🟢 Presentes</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--danger);">' + ausentes + '</div><div class="resumen-label">🔴 Ausentes</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--warning);">' + pendientes + '</div><div class="resumen-label">🟡 Pendientes</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:#3b82f6;">' + asignados + '</div><div class="resumen-label">🔵 Asignados</div></div>' +
     '<div class="resumen-card"><div class="resumen-value" style="color:var(--warning);">' + enColacion + '</div><div class="resumen-label">🍽️ Colación</div></div>' +
-    '<div class="resumen-card"><div class="resumen-value" style="color:#3b82f6;">' + libres + '</div><div class="resumen-label">⏳ Libres</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + libres + '</div><div class="resumen-label">⏳ Libres</div></div>' +
     '<div class="resumen-card"><div class="resumen-value">' + totalVuelos + '</div><div class="resumen-label">✈️ Vuelos</div></div>' +
-    '<div class="resumen-card"><div class="resumen-value" style="color:var(--warning);">' + pendientes + '</div><div class="resumen-label">Pendientes</div></div>' +
-    '<div class="resumen-card"><div class="resumen-value" style="color:#3b82f6;">' + enCurso + '</div><div class="resumen-label">En Curso</div></div>' +
-    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + completados + '</div><div class="resumen-label">Completados</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--warning);">' + vuelosPendientes + '</div><div class="resumen-label">⏳ Pendientes</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:#3b82f6;">' + enCurso + '</div><div class="resumen-label">🔄 En Curso</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + completados + '</div><div class="resumen-label">✅ Completados</div></div>' +
     '<div class="resumen-card"><div class="resumen-value" style="color:var(--accent);font-size:0.9em;">' + proximaColacion + '</div><div class="resumen-label">⏱️ Próxima Colación</div></div>';
 }
 
@@ -1463,8 +1531,10 @@ function renderAgentesTabla() {
 
   const now = Date.now();
   tbody.innerHTML = agentesFiltrados.map(function(ag) {
-    const estadoBadge = ag.estado === 'disponible' ? '<span class="badge badge-disponible">🟢 Disponible</span>' :
-      ag.estado === 'asignado' ? '<span class="badge badge-asignado">🔴 Asignado</span>' :
+    const estadoBadge = ag.estado === 'presente' ? '<span class="badge badge-disponible">🟢 Presente</span>' :
+      ag.estado === 'ausente' ? '<span class="badge" style="background:var(--danger-bg);color:var(--danger);">🔴 Ausente</span>' :
+      ag.estado === 'pendiente' ? '<span class="badge" style="background:rgba(245,158,11,0.15);color:var(--warning);">🟡 Pendiente</span>' :
+      ag.estado === 'asignado' ? '<span class="badge badge-asignado">🔵 Asignado</span>' :
       ag.estado === 'colacion' ? '<span class="badge badge-colacion">🍽️ Colación</span>' :
       '<span class="badge badge-libre">⏳ Libre</span>';
 
@@ -1495,9 +1565,17 @@ function renderAgentesTabla() {
     if (ag.estado === 'colacion' || (ag.colacionTimer && now < ag.colacionTimer)) {
       acciones = '<button class="btn btn-success btn-sm" onclick="finalizarColacion(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">✅ Fin Colación</button>';
     } else if (ag.estado === 'asignado' || (ag.libreTimer && now < ag.libreTimer)) {
-      actions = '<button class="btn btn-ghost btn-sm" onclick="liberarAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">🔓 Liberar</button>';
+      acciones = '<button class="btn btn-ghost btn-sm" onclick="liberarAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">🔓 Liberar</button>';
+    } else if (ag.estado === 'ausente') {
+      acciones = '<button class="btn btn-success btn-sm" onclick="cambiarEstadoAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\', \'presente\')" style="padding:2px 6px;font-size:0.75em;">✅ Presente</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="cambiarEstadoAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\', \'pendiente\')" style="padding:2px 6px;font-size:0.75em;">🟡 Pendiente</button>';
+    } else if (ag.estado === 'pendiente') {
+      acciones = '<button class="btn btn-success btn-sm" onclick="cambiarEstadoAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\', \'presente\')" style="padding:2px 6px;font-size:0.75em;">✅ Presente</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="cambiarEstadoAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\', \'ausente\')" style="padding:2px 6px;font-size:0.75em;">🔴 Ausente</button>';
     } else {
-      acciones = '<button class="btn btn-ghost btn-sm" onclick="iniciarColacion(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">🍽️ Colación</button>';
+      acciones = '<button class="btn btn-ghost btn-sm" onclick="cambiarEstadoAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\', \'ausente\')" style="padding:2px 6px;font-size:0.75em;">🔴 Ausente</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="iniciarColacion(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">🍽️ Colación</button>' +
+        '<button class="btn btn-ghost btn-sm" onclick="openExtendidoModal(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">⏱️ Ext.</button>';
     }
 
     const turnoTxt = ag.turno ? (ag.turno.entradaAMPM + ' - ' + ag.turno.salidaAMPM) : '—';

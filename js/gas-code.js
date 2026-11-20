@@ -180,16 +180,16 @@ function doPost(e) {
       var agSheet = planSs.getSheetByName('AGENTES_TURNO');
       if (!agSheet) {
         agSheet = planSs.insertSheet('AGENTES_TURNO');
-        agSheet.getRange(1, 1, 1, 8).setValues([[
-          'RUT', 'Nombre', 'Rol', 'Turno Entrada', 'Turno Salida', 'Es LATAM', 'Es OLA', 'Fecha'
+        agSheet.getRange(1, 1, 1, 11).setValues([[
+          'RUT', 'Nombre', 'Rol', 'Turno Entrada', 'Turno Salida', 'Es LATAM', 'Es OLA', 'Es Supervisor', 'Estado', 'Horas Extendido', 'Fecha'
         ]]);
       }
       var fecha = body.fecha || '';
       var agentes = body.agentes || [];
-      var existingAg = agSheet.getRange('A2:H' + agSheet.getLastRow()).getValues();
+      var existingAg = agSheet.getRange('A2:K' + agSheet.getLastRow()).getValues();
       var toDelete = [];
       for (var ai = existingAg.length - 1; ai >= 0; ai--) {
-        if (existingAg[ai][7] === fecha) toDelete.push(ai + 2);
+        if (existingAg[ai][9] === fecha) toDelete.push(ai + 2);
       }
       toDelete.sort(function(a, b) { return b - a; }).forEach(function(row) {
         agSheet.deleteRow(row);
@@ -199,10 +199,13 @@ function doPost(e) {
           ag.rut || '',
           ag.nombre || '',
           ag.rol || '',
-          ag.entrada || '',
-          ag.salida || '',
+          ag.turno ? ag.turno.entradaAMPM || '' : '',
+          ag.turno ? ag.turno.salidaAMPM || '' : '',
           ag.esLATAM ? 'SI' : 'NO',
           ag.esOLA ? 'SI' : 'NO',
+          ag.esSupervisor ? 'SI' : 'NO',
+          ag.estado || 'presente',
+          ag.horasExtendido || 0,
           fecha
         ]);
       });
