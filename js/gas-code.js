@@ -175,6 +175,131 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // ── CONTROL AGENTES ──────────────────────────────────────
+    if (action === 'saveAgentesTurno') {
+      var agSheet = planSs.getSheetByName('AGENTES_TURNO');
+      if (!agSheet) {
+        agSheet = planSs.insertSheet('AGENTES_TURNO');
+        agSheet.getRange(1, 1, 1, 8).setValues([[
+          'RUT', 'Nombre', 'Rol', 'Turno Entrada', 'Turno Salida', 'Es LATAM', 'Es OLA', 'Fecha'
+        ]]);
+      }
+      var fecha = body.fecha || '';
+      var agentes = body.agentes || [];
+      var existingAg = agSheet.getRange('A2:H' + agSheet.getLastRow()).getValues();
+      var toDelete = [];
+      for (var ai = existingAg.length - 1; ai >= 0; ai--) {
+        if (existingAg[ai][7] === fecha) toDelete.push(ai + 2);
+      }
+      toDelete.sort(function(a, b) { return b - a; }).forEach(function(row) {
+        agSheet.deleteRow(row);
+      });
+      agentes.forEach(function(ag) {
+        agSheet.appendRow([
+          ag.rut || '',
+          ag.nombre || '',
+          ag.rol || '',
+          ag.entrada || '',
+          ag.salida || '',
+          ag.esLATAM ? 'SI' : 'NO',
+          ag.esOLA ? 'SI' : 'NO',
+          fecha
+        ]);
+      });
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Agentes guardados' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'saveVueloTurno') {
+      var vlSheet = planSs.getSheetByName('VUELOS_TURNO');
+      if (!vlSheet) {
+        vlSheet = planSs.insertSheet('VUELOS_TURNO');
+        vlSheet.getRange(1, 1, 1, 10).setValues([[
+          'ID', 'Fecha', 'Tipo', 'Número', 'Hora', 'PAX', 'WCHC', 'Estado', 'Es Full Service', 'Aerolinea'
+        ]]);
+      }
+      var vuelo = body.vuelo || {};
+      var existingVl = vlSheet.getRange('A2:J' + vlSheet.getLastRow()).getValues();
+      var foundVl = false;
+      for (var vi = 1; vi < existingVl.length; vi++) {
+        if (existingVl[vi][0] === vuelo.id) {
+          vlSheet.getRange(vi + 1, 1, 1, 10).setValues([[
+            vuelo.id || '',
+            vuelo.fecha || '',
+            vuelo.tipo || '',
+            vuelo.numero || '',
+            vuelo.hora || '',
+            vuelo.pax || 0,
+            vuelo.wchc || 0,
+            vuelo.estado || 'pendiente',
+            vuelo.esFullService ? 'SI' : 'NO',
+            vuelo.aerolinea || ''
+          ]]);
+          foundVl = true;
+          break;
+        }
+      }
+      if (!foundVl) {
+        vlSheet.appendRow([
+          vuelo.id || '',
+          vuelo.fecha || '',
+          vuelo.tipo || '',
+          vuelo.numero || '',
+          vuelo.hora || '',
+          vuelo.pax || 0,
+          vuelo.wchc || 0,
+          vuelo.estado || 'pendiente',
+          vuelo.esFullService ? 'SI' : 'NO',
+          vuelo.aerolinea || ''
+        ]);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Vuelo guardado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'saveAsignacion') {
+      var asigSheet = planSs.getSheetByName('ASIGNACIONES_TURNO');
+      if (!asigSheet) {
+        asigSheet = planSs.insertSheet('ASIGNACIONES_TURNO');
+        asigSheet.getRange(1, 1, 1, 8).setValues([[
+          'ID', 'Fecha', 'Agente RUT', 'Vuelo ID', 'Tipo', 'Inicio', 'Fin', 'Estado'
+        ]]);
+      }
+      var asig = body.asignacion || {};
+      asigSheet.appendRow([
+        asig.id || '',
+        asig.fecha || '',
+        asig.agenteRut || '',
+        asig.vueloId || '',
+        asig.tipo || '',
+        asig.inicio || '',
+        asig.fin || '',
+        asig.estado || 'activa'
+      ]);
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Asignación guardada' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'clearTurno') {
+      var fecha = body.fecha || '';
+      var sheetsToClear = ['AGENTES_TURNO', 'VUELOS_TURNO', 'ASIGNACIONES_TURNO'];
+      var cleared = [];
+      sheetsToClear.forEach(function(sn) {
+        var sh = planSs.getSheetByName(sn);
+        if (sh && sh.getLastRow() > 1) {
+          var sd = sh.getRange('A2:Z' + sh.getLastRow()).getValues();
+          for (var ci = sd.length - 1; ci >= 0; ci--) {
+            if (sd[ci][0] === fecha || sd[ci][1] === fecha) {
+              sh.deleteRow(ci + 2);
+              cleared.push(sn);
+            }
+          }
+        }
+      });
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Turno limpiado', cleared: cleared }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var registros = body.registros || [];
     var sheet = flightSs.getSheetByName('DATABASE') || flightSs.getSheets()[0];
 
@@ -455,6 +580,68 @@ function doGet(e) {
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true, data: sinTica }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // ── CONTROL AGENTES GET ──────────────────────────────────
+    if (action === 'getAgentesTurno') {
+      var fecha = e.parameter.fecha;
+      var agSheet = planSs.getSheetByName('AGENTES_TURNO');
+      if (!agSheet || !fecha) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var agData = agSheet.getDataRange().getValues();
+      var agHeaders = agData[0];
+      var agentes = agData.slice(1).map(function(row) {
+        var obj = {};
+        agHeaders.forEach(function(h, i) {
+          obj[h] = row[i] !== undefined ? row[i] : '';
+        });
+        return obj;
+      }).filter(function(a) { return a.Fecha === fecha; });
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: agentes }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'getVuelosTurno') {
+      var fecha = e.parameter.fecha;
+      var vlSheet = planSs.getSheetByName('VUELOS_TURNO');
+      if (!vlSheet || !fecha) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var vlData = vlSheet.getDataRange().getValues();
+      var vlHeaders = vlData[0];
+      var vuelos = vlData.slice(1).map(function(row) {
+        var obj = {};
+        vlHeaders.forEach(function(h, i) {
+          obj[h] = row[i] !== undefined ? row[i] : '';
+        });
+        return obj;
+      }).filter(function(v) { return v.Fecha === fecha; });
+      vuelos.sort(function(a, b) { return (a.Hora || '').localeCompare(b.Hora || ''); });
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: vuelos }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'getAsignacionesTurno') {
+      var fecha = e.parameter.fecha;
+      var asigSheet = planSs.getSheetByName('ASIGNACIONES_TURNO');
+      if (!asigSheet || !fecha) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var asigData = asigSheet.getDataRange().getValues();
+      var asigHeaders = asigData[0];
+      var asignaciones = asigData.slice(1).map(function(row) {
+        var obj = {};
+        asigHeaders.forEach(function(h, i) {
+          obj[h] = row[i] !== undefined ? row[i] : '';
+        });
+        return obj;
+      }).filter(function(a) { return a.Fecha === fecha; });
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: asignaciones }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 

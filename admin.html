@@ -193,25 +193,63 @@
             <div class="card-header">
               <div class="card-title">👮 Control Agentes</div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-accent btn-sm" onclick="openControlModal()">➕ Nuevo Registro</button>
-                <button class="btn btn-accent btn-sm" onclick="loadControlFromServer()">🔄 Actualizar</button>
+                <button class="btn btn-ghost btn-sm" onclick="openPasteAgentesModal()">📋 Pegar Agentes</button>
+                <button class="btn btn-accent btn-sm" onclick="openNuevoVueloModal()">✈️ Nuevo Vuelo</button>
+                <button class="btn btn-success btn-sm" onclick="autoAsignarTurno()">🧠 Asignación Automática</button>
+                <button class="btn btn-accent btn-sm" onclick="loadControlAgentesTurno()">🔄 Actualizar</button>
+                <button class="btn btn-danger btn-sm" onclick="clearControlTurno()">🗑️ Limpiar Turno</button>
               </div>
             </div>
-            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">🚫 Agentes Ausentes (planificación de hoy)</h3>
-            <div id="ctrlAusentesHoy" class="hint-box">—</div>
-            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">📆 Agentes con ausencias en 2 o más días distintos</h3>
-            <div id="ctrlAusentesDias" class="hint-box">—</div>
-            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">⚠️ Agentes con 3 o más ausencias</h3>
-            <div id="ctrlAusentes3" class="hint-box">—</div>
-            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">🏥 Licencias Activas</h3>
-            <div id="ctrlLicenciasActivas" class="hint-box">—</div>
-            <h3 style="font-size:0.95em;color:var(--text);margin:14px 0 6px;">📋 Cartas de Amonestación</h3>
-            <div class="excel-container">
-              <table id="controlTable" style="width:100%;">
-                <thead><tr><th>Nombre Agente</th><th>Motivo</th><th>Estado</th><th>Firmada</th><th>Acción</th></tr></thead>
-                <tbody id="controlTableBody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text-muted);">Sin registros de control.</td></tr></tbody>
+
+            <div id="ctrlResumen" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px;"></div>
+
+            <div id="ctrlAlertasContainer"></div>
+
+            <h3 style="font-size:0.95em;color:var(--text);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px;">👥 Agentes del Turno</h3>
+            <div class="search-bar" style="margin-bottom:8px;">
+              <div class="form-group">
+                <label>🔍 Buscar</label>
+                <input type="text" id="ctrlFilterAgente" placeholder="RUT o nombre" oninput="renderAgentesTabla()" style="padding:6px 10px;">
+              </div>
+              <div class="form-group">
+                <label>⚠️ Estado</label>
+                <select id="ctrlFilterEstado" onchange="renderAgentesTabla()" style="padding:6px 10px;">
+                  <option value="">Todos</option>
+                  <option value="disponible">🟢 Disponible</option>
+                  <option value="asignado">🔴 Asignado</option>
+                  <option value="colacion">🍽️ Colación</option>
+                  <option value="libre">⏳ Libre (timer)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>🏢 Rol</label>
+                <select id="ctrlFilterRol" onchange="renderAgentesTabla()" style="padding:6px 10px;">
+                  <option value="">Todos</option>
+                  <option value="LATAM">LATAM</option>
+                  <option value="OLA">OLA</option>
+                </select>
+              </div>
+            </div>
+            <div class="excel-container" style="max-height:400px;overflow:auto;">
+              <table id="ctrlAgentesTable" style="width:100%;">
+                <thead><tr id="ctrlAgentesTableHead"></tr></thead>
+                <tbody id="ctrlAgentesTableBody"><tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted);">Carga agentes con "Pegar Agentes" para comenzar.</td></tr></tbody>
               </table>
             </div>
+
+            <h3 style="font-size:0.95em;color:var(--text);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px;">✈️ Vuelos del Turno</h3>
+            <div class="excel-container" style="max-height:400px;overflow:auto;">
+              <table id="ctrlVuelosTable" style="width:100%;">
+                <thead><tr id="ctrlVuelosTableHead"></tr></thead>
+                <tbody id="ctrlVuelosTableBody"><tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted);">Crea vuelos con "Nuevo Vuelo" para comenzar.</td></tr></tbody>
+              </table>
+            </div>
+
+            <h3 style="font-size:0.95em;color:var(--text);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px;">📊 Timeline de Asignaciones</h3>
+            <div id="ctrlTimeline" style="overflow-x:auto;padding-bottom:10px;"></div>
+
+            <h3 style="font-size:0.95em;color:var(--text);margin:16px 0 8px;border-bottom:1px solid var(--border);padding-bottom:6px;">⏱️ Timers Activos</h3>
+            <div id="ctrlTimers" class="timers-grid"></div>
           </div>
         </div>
 
@@ -765,6 +803,54 @@
       <div style="display:flex;gap:10px;">
         <button class="btn btn-success" style="flex:1;" onclick="saveHHEE()">✅ Guardar</button>
         <button class="btn btn-secondary" onclick="closeHHEEModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Paste Agentes Modal -->
+  <div id="pasteAgentesModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">📋 Pegar Agentes desde Excel</div>
+      <div class="modal-subtitle">Copia el rango de celdas (RUT, Nombre, Rol, Turno) desde Excel y pégalo aquí.</div>
+      <textarea id="pasteAgentesArea" placeholder="Pega aquí los datos de agentes...&#10;&#10;Ejemplo:&#10;28.181.429-K&#9;SIRIT GIMENEZ FABIAN JESUS&#9;FT LATAM&#9;M0413" style="min-height:200px;"></textarea>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="ingestAgentesPaste()">✅ Insertar Agentes</button>
+        <button class="btn btn-secondary" onclick="closePasteAgentesModal()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Nuevo Vuelo Modal -->
+  <div id="nuevoVueloModal" class="modal-overlay">
+    <div class="modal-content">
+      <div class="modal-title">✈️ Nuevo Vuelo</div>
+      <div class="modal-subtitle">Ingresa los datos del vuelo a planificar.</div>
+      <div class="form-group">
+        <label>Tipo de Servicio</label>
+        <select id="nvTipo">
+          <option value="ARRIBO">Arribo</option>
+          <option value="EMBARQUE">Embarque</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Número de Vuelo</label>
+        <input type="text" id="nvNumero" placeholder="Ej: DL147" style="text-transform:uppercase;">
+      </div>
+      <div class="form-group">
+        <label>ETA/ETD (Hora)</label>
+        <input type="time" id="nvHora">
+      </div>
+      <div class="form-group">
+        <label>PAX (Cantidad de Pasajeros)</label>
+        <input type="number" id="nvPax" min="0" placeholder="0">
+      </div>
+      <div class="form-group">
+        <label>WCHC (Pasajeros en silla de ruedas)</label>
+        <input type="number" id="nvWchc" min="0" value="0" placeholder="0">
+      </div>
+      <div style="display:flex;gap:10px;margin-top:10px;">
+        <button class="btn btn-success" style="flex:1;" onclick="saveNuevoVuelo()">✅ Guardar Vuelo</button>
+        <button class="btn btn-secondary" onclick="closeNuevoVueloModal()">Cerrar</button>
       </div>
     </div>
   </div>

@@ -840,3 +840,897 @@ function verReporte(repStr) {
 }
 
 window.verReporte = verReporte;
+
+// ── CONTROL AGENTES ──────────────────────────────────────
+let ctrlAgentes = [];
+let ctrlVuelos = [];
+let ctrlAsignaciones = [];
+let ctrlTimers = [];
+let ctrlFecha = new Date().toISOString().slice(0, 10);
+let ctrlTimerInterval = null;
+
+function parseTurnoM(turnoStr) {
+  if (!turnoStr || turnoStr.length < 5) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM' };
+  const s = turnoStr.replace(/[^0-9]/g, '');
+  if (s.length < 4) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM' };
+  let hh1 = parseInt(s.substring(0, 2));
+  let mm1 = parseInt(s.substring(2, 4));
+  let hh2 = hh1 + 8;
+  if (hh2 >= 24) hh2 -= 24;
+  let ampm1 = hh1 >= 12 ? 'PM' : 'AM';
+  let ampm2 = hh2 >= 12 ? 'PM' : 'AM';
+  let h1_12 = hh1 % 12; if (h1_12 === 0) h1_12 = 12;
+  let h2_12 = hh2 % 12; if (h2_12 === 0) h2_12 = 12;
+  return {
+    entrada: String(hh1).padStart(2, '0') + ':' + String(mm1).padStart(2, '0'),
+    salida: String(hh2).padStart(2, '0') + ':' + String(mm1).padStart(2, '0'),
+    entradaAMPM: String(h1_12).padStart(2, '0') + ':' + String(mm1).padStart(2, '0') + ' ' + ampm1,
+    salidaAMPM: String(h2_12).padStart(2, '0') + ':' + String(mm1).padStart(2, '0') + ' ' + ampm2
+  };
+}
+
+function openPasteAgentesModal() {
+  const modal = document.getElementById('pasteAgentesModal');
+  if (modal) {
+    modal.classList.add('active');
+    const area = document.getElementById('pasteAgentesArea');
+    if (area) area.focus();
+  }
+}
+
+function closePasteAgentesModal() {
+  const modal = document.getElementById('pasteAgentesModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function ingestAgentesPaste() {
+  const area = document.getElementById('pasteAgentesArea');
+  if (!area) return;
+  const text = area.value.trim();
+  if (!text) { alert('No hay datos para importar.'); return; }
+
+  const lines = text.split('\n');
+  const newAgentes = lines.map(function(line) {
+    const parts = line.split('\t').map(function(p) { return p.trim(); });
+    const rut = parts[0] || '';
+    const nombre = parts[1] || '';
+    const rol = parts[2] || '';
+    const turnoStr = parts[3] || '';
+    const turno = parseTurnoM(turnoStr);
+    const esLATAM = rol.toUpperCase().includes('LATAM') || rol.toUpperCase() === 'LATAM';
+    const esOLA = rol.toUpperCase().includes('OLA') || rol.toUpperCase() === 'OLA' || rol.toUpperCase().includes('CARRO');
+    return {
+      rut: rut,
+      nombre: nombre,
+      rol: rol,
+      turno: turno,
+      estado: 'disponible',
+      esLATAM: esLATAM,
+      esOLA: esOLA,
+      esSupervisor: false,
+      vueloAsignado: null,
+      tipoAsignacion: null,
+      colacionTimer: null,
+      libreTimer: null
+    };
+  }).filter(function(ag) { return ag.rut && ag.nombre; });
+
+  if (newAgentes.length === 0) {
+    alert('No se encontraron agentes válidos. Verifica el formato (RUT, Nombre, Rol, Turno).');
+    return;
+  }
+
+  ctrlAgentes = newAgentes;
+  closePasteAgentesModal();
+  if (area) area.value = '';
+  renderCtrlResumen();
+  renderAgentesTabla();
+  renderVuelosTabla();
+  saveAgentesTurnoToServer();
+  startTimerLoop();
+}
+
+function saveAgentesTurnoToServer() {
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'saveAgentesTurno',
+      fecha: ctrlFecha,
+      agentes: ctrlAgentes
+    })
+  }).catch(function(err) { console.error('Error guardando agentes:', err); });
+}
+
+function saveVueloTurnoToServer(vuelo) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'saveVueloTurno',
+      vuelo: vuelo
+    })
+  }).catch(function(err) { console.error('Error guardando vuelo:', err); });
+}
+
+function saveAsignacionToServer(asig) {
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      action: 'saveAsignacion',
+      asignacion: asig
+    })
+  }).catch(function(err) { console.error('Error guardando asignación:', err); });
+}
+
+function clearControlTurno() {
+  if (!confirm('¿Está seguro de que desea limpiar todo el turno? Se borrarán agentes, vuelos y asignaciones.')) return;
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'clearTurno', fecha: ctrlFecha })
+  }).catch(function(err) { console.error('Error limpiando turno:', err); });
+
+  ctrlAgentes = [];
+  ctrlVuelos = [];
+  ctrlAsignaciones = [];
+  ctrlTimers = [];
+  renderCtrlResumen();
+  renderAgentesTabla();
+  renderVuelosTabla();
+  renderTimeline();
+  renderTimers();
+  renderConflictos();
+  if (ctrlTimerInterval) { clearInterval(ctrlTimerInterval); ctrlTimerInterval = null; }
+  alert('Turno limpiado.');
+}
+
+function loadControlAgentesTurno() {
+  Promise.all([
+    fetch(GAS_URL + '?action=getAgentesTurno&fecha=' + encodeURIComponent(ctrlFecha)).then(function(r) { return r.json(); }),
+    fetch(GAS_URL + '?action=getVuelosTurno&fecha=' + encodeURIComponent(ctrlFecha)).then(function(r) { return r.json(); }),
+    fetch(GAS_URL + '?action=getAsignacionesTurno&fecha=' + encodeURIComponent(ctrlFecha)).then(function(r) { return r.json(); })
+  ]).then(function(results) {
+    const agResult = results[0];
+    const vlResult = results[1];
+    const asigResult = results[2];
+
+    if (agResult.success && agResult.data) {
+      ctrlAgentes = agResult.data.map(function(ag) {
+        return {
+          rut: ag['RUT'] || '',
+          nombre: ag['Nombre'] || '',
+          rol: ag['Rol'] || '',
+          turno: parseTurnoM(ag['Turno Entrada'] || ''),
+          estado: 'disponible',
+          esLATAM: ag['Es LATAM'] === 'SI',
+          esOLA: ag['Es OLA'] === 'SI',
+          esSupervisor: false,
+          vueloAsignado: null,
+          tipoAsignacion: null,
+          colacionTimer: null,
+          libreTimer: null
+        };
+      });
+    }
+
+    if (vlResult.success && vlResult.data) {
+      ctrlVuelos = vlResult.data.map(function(v) {
+        return {
+          id: v['ID'] || '',
+          fecha: v['Fecha'] || '',
+          tipo: v['Tipo'] || '',
+          numero: v['Número'] || '',
+          hora: v['Hora'] || '',
+          pax: parseInt(v['PAX']) || 0,
+          wchc: parseInt(v['WCHC']) || 0,
+          estado: v['Estado'] || 'pendiente',
+          esFullService: v['Es Full Service'] === 'SI',
+          aerolinea: v['Aerolinea'] || ''
+        };
+      });
+    }
+
+    if (asigResult.success && asigResult.data) {
+      ctrlAsignaciones = asigResult.data.map(function(a) {
+        return {
+          id: a['ID'] || '',
+          fecha: a['Fecha'] || '',
+          agenteRut: a['Agente RUT'] || '',
+          vueloId: a['Vuelo ID'] || '',
+          tipo: a['Tipo'] || '',
+          inicio: a['Inicio'] || '',
+          fin: a['Fin'] || '',
+          estado: a['Estado'] || 'activa'
+        };
+      });
+    }
+
+    renderCtrlResumen();
+    renderAgentesTabla();
+    renderVuelosTabla();
+    renderTimeline();
+    renderTimers();
+    renderConflictos();
+    startTimerLoop();
+  }).catch(function(err) {
+    console.error('Error cargando turno:', err);
+  });
+}
+
+function openNuevoVueloModal() {
+  const modal = document.getElementById('nuevoVueloModal');
+  if (modal) {
+    modal.classList.add('active');
+    document.getElementById('nvNumero').focus();
+  }
+}
+
+function closeNuevoVueloModal() {
+  const modal = document.getElementById('nuevoVueloModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function saveNuevoVuelo() {
+  const tipo = document.getElementById('nvTipo').value;
+  const numero = document.getElementById('nvNumero').value.trim().toUpperCase();
+  const hora = document.getElementById('nvHora').value;
+  const pax = parseInt(document.getElementById('nvPax').value) || 0;
+  const wchc = parseInt(document.getElementById('nvWchc').value) || 0;
+
+  if (!numero || !hora) {
+    alert('Complete número de vuelo y hora.');
+    return;
+  }
+
+  const aerolinea = numero.substring(0, 2);
+  const fullServiceLines = ['DL', 'AC', 'KL', 'AF'];
+  const esFullService = fullServiceLines.includes(aerolinea);
+
+  const vuelo = {
+    id: 'V-' + Date.now(),
+    fecha: ctrlFecha,
+    tipo: tipo,
+    numero: numero,
+    hora: hora,
+    pax: pax,
+    wchc: wchc,
+    estado: 'pendiente',
+    esFullService: esFullService,
+    aerolinea: aerolinea
+  };
+
+  ctrlVuelos.push(vuelo);
+  ctrlVuelos.sort(function(a, b) { return a.hora.localeCompare(b.hora); });
+  saveVueloTurnoToServer(vuelo);
+
+  closeNuevoVueloModal();
+  document.getElementById('nvNumero').value = '';
+  document.getElementById('nvHora').value = '';
+  document.getElementById('nvPax').value = '';
+  document.getElementById('nvWchc').value = '0';
+
+  renderVuelosTabla();
+  renderCtrlResumen();
+}
+
+function calcularAgentesNecesarios(vuelo) {
+  let base = 0;
+  if (vuelo.esFullService) {
+    base = vuelo.pax;
+  } else {
+    base = Math.ceil(vuelo.pax / 3);
+  }
+  const wchcExtra = vuelo.wchc > 0 ? Math.ceil(vuelo.wchc / 2) : 0;
+  let counters = 0;
+  if (vuelo.tipo === 'EMBARQUE' && vuelo.esFullService) {
+    counters = Math.max(1, Math.ceil(vuelo.pax / 10));
+  }
+  return {
+    agentesArribo: base + wchcExtra,
+    agentesCounter: counters,
+    total: base + wchcExtra + counters
+  };
+}
+
+function calcularTimerLiberacion(vuelo) {
+  if (vuelo.esFullService) return 60 * 60 * 1000;
+  if (vuelo.tipo === 'ARRIBO') return 20 * 60 * 1000;
+  return 35 * 60 * 1000;
+}
+
+function estaEnTurno(agente, hora) {
+  if (!agente.turno) return true;
+  const [h, m] = hora.split(':').map(Number);
+  const minutos = h * 60 + m;
+  const [he, me] = agente.turno.entrada.split(':').map(Number);
+  const [hs, ms] = agente.turno.salida.split(':').map(Number);
+  const entradaMin = he * 60 + me;
+  const salidaMin = hs * 60 + ms;
+  if (salidaMin < entradaMin) return minutos >= entradaMin || minutos <= salidaMin;
+  return minutos >= entradaMin && minutos <= salidaMin;
+}
+
+function agenteDisponible(agente) {
+  if (agente.estado !== 'disponible') return false;
+  if (agente.libreTimer && Date.now() < agente.libreTimer) return false;
+  if (agente.colacionTimer && Date.now() < agente.colacionTimer) return false;
+  return true;
+}
+
+function autoAsignarTurno() {
+  if (ctrlAgentes.length === 0) {
+    alert('Cargue agentes primero con "Pegar Agentes".');
+    return;
+  }
+  if (ctrlVuelos.length === 0) {
+    alert('Cree vuelos primero con "Nuevo Vuelo".');
+    return;
+  }
+
+  const now = new Date();
+  const horaActual = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+
+  const vuelosPendientes = ctrlVuelos.filter(function(v) { return v.estado === 'pendiente'; });
+  vuelosPendientes.sort(function(a, b) { return a.hora.localeCompare(b.hora); });
+
+  let asignacionesRealizadas = 0;
+
+  vuelosPendientes.forEach(function(vuelo) {
+    const necesarios = calcularAgentesNecesarios(vuelo);
+    let asignados = 0;
+    const agentesAsignados = [];
+
+    const agentesOrdenados = ctrlAgentes.slice().sort(function(a, b) {
+      const aPrefiere = vuelo.esFullService && vuelo.aerolinea.startsWith('LA')
+        ? (a.esLATAM ? 0 : 1)
+        : (a.esOLA ? 0 : 1);
+      const bPrefiere = vuelo.esFullService && vuelo.aerolinea.startsWith('LA')
+        ? (b.esLATAM ? 0 : 1)
+        : (b.esOLA ? 0 : 1);
+      if (aPrefiere !== bPrefiere) return aPrefiere - bPrefiere;
+      if (a.estado !== b.estado) return a.estado.localeCompare(b.estado);
+      return a.nombre.localeCompare(b.nombre);
+    });
+
+    for (let i = 0; i < agentesOrdenados.length && asignados < necesarios.total; i++) {
+      const ag = agentesOrdenados[i];
+      if (!agenteDisponible(ag)) continue;
+      if (!estaEnTurno(ag, vuelo.hora)) continue;
+
+      const esLATAMFlight = vuelo.aerolinea.startsWith('LA');
+      if (esLATAMFlight && !ag.esLATAM && !ag.esOLA) continue;
+      if (!esLATAMFlight && !ag.esOLA && !ag.esLATAM) continue;
+
+      ag.estado = 'asignado';
+      ag.vueloAsignado = vuelo.id;
+      ag.tipoAsignacion = vuelo.tipo.toLowerCase();
+
+      const timerMs = calcularTimerLiberacion(vuelo);
+      ag.libreTimer = Date.now() + timerMs;
+
+      const asig = {
+        id: 'A-' + Date.now() + '-' + i,
+        fecha: ctrlFecha,
+        agenteRut: ag.rut,
+        vueloId: vuelo.id,
+        tipo: vuelo.tipo.toLowerCase(),
+        inicio: new Date().toISOString(),
+        fin: new Date(Date.now() + timerMs).toISOString(),
+        estado: 'activa'
+      };
+      ctrlAsignaciones.push(asig);
+      saveAsignacionToServer(asig);
+
+      agentesAsignados.push(ag.rut);
+      asignados++;
+      asignacionesRealizadas++;
+    }
+
+    if (asignados >= necesarios.total) {
+      vuelo.estado = 'completado';
+    } else if (asignados > 0) {
+      vuelo.estado = 'en_curso';
+    }
+
+    vuelo.agentesAsignados = agentesAsignados;
+    saveVueloTurnoToServer(vuelo);
+  });
+
+  programarColaciones();
+  renderCtrlResumen();
+  renderAgentesTabla();
+  renderVuelosTabla();
+  renderTimeline();
+  renderTimers();
+  renderConflictos();
+  startTimerLoop();
+
+  alert('Asignación automática completada: ' + asignacionesRealizadas + ' asignaciones realizadas.');
+}
+
+function programarColaciones() {
+  const now = new Date();
+  ctrlAgentes.forEach(function(ag) {
+    if (ag.estado !== 'disponible' && ag.estado !== 'asignado') return;
+    if (!ag.turno || !ag.turno.entrada) return;
+
+    const [he, me] = ag.turno.entrada.split(':').map(Number);
+    const entradaDate = new Date();
+    entradaDate.setHours(he, me, 0, 0);
+
+    const colacionOptima = new Date(entradaDate.getTime() + 4.5 * 60 * 60 * 1000);
+
+    if (colacionOptima > now && colacionOptima < new Date(now.getTime() + 2 * 60 * 60 * 1000)) {
+      const hayConflicto = ctrlAsignaciones.some(function(a) {
+        if (a.agenteRut !== ag.rut || a.estado !== 'activa') return false;
+        const asigInicio = new Date(a.inicio).getTime();
+        const asigFin = new Date(a.fin).getTime();
+        return colacionOptima >= asigInicio && colacionOptima <= asigFin;
+      });
+
+      if (!hayConflicto) {
+        ag.colacionProgramada = colacionOptima.getTime();
+      }
+    }
+  });
+}
+
+function iniciarColacion(rut) {
+  const ag = ctrlAgentes.find(function(a) { return a.rut === rut; });
+  if (!ag) return;
+  ag.estado = 'colacion';
+  ag.colacionTimer = Date.now() + 60 * 60 * 1000;
+  ag.vueloAsignado = null;
+  ag.tipoAsignacion = 'colacion';
+
+  const asig = {
+    id: 'C-' + Date.now(),
+    fecha: ctrlFecha,
+    agenteRut: rut,
+    vueloId: null,
+    tipo: 'colacion',
+    inicio: new Date().toISOString(),
+    fin: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    estado: 'activa'
+  };
+  ctrlAsignaciones.push(asig);
+  saveAsignacionToServer(asig);
+
+  renderAgentesTabla();
+  renderTimers();
+  renderCtrlResumen();
+}
+
+function finalizarColacion(rut) {
+  const ag = ctrlAgentes.find(function(a) { return a.rut === rut; });
+  if (!ag) return;
+  ag.estado = 'disponible';
+  ag.colacionTimer = null;
+  ag.vueloAsignado = null;
+  ag.tipoAsignacion = null;
+
+  ctrlAsignaciones.forEach(function(a) {
+    if (a.agenteRut === rut && a.tipo === 'colacion' && a.estado === 'activa') {
+      a.estado = 'completada';
+    }
+  });
+
+  renderAgentesTabla();
+  renderTimers();
+  renderCtrlResumen();
+}
+
+function liberarAgente(rut) {
+  const ag = ctrlAgentes.find(function(a) { return a.rut === rut; });
+  if (!ag) return;
+  ag.estado = 'disponible';
+  ag.libreTimer = null;
+  ag.vueloAsignado = null;
+  ag.tipoAsignacion = null;
+
+  ctrlAsignaciones.forEach(function(a) {
+    if (a.agenteRut === rut && a.estado === 'activa') {
+      a.estado = 'completada';
+    }
+  });
+
+  renderAgentesTabla();
+  renderTimers();
+  renderCtrlResumen();
+}
+
+function startTimerLoop() {
+  if (ctrlTimerInterval) clearInterval(ctrlTimerInterval);
+  ctrlTimerInterval = setInterval(function() {
+    let changed = false;
+    const now = Date.now();
+
+    ctrlAgentes.forEach(function(ag) {
+      if (ag.libreTimer && now >= ag.libreTimer) {
+        ag.libreTimer = null;
+        if (ag.estado === 'asignado' || ag.estado === 'libre') {
+          ag.estado = 'disponible';
+          ag.vueloAsignado = null;
+          ag.tipoAsignacion = null;
+          changed = true;
+        }
+      }
+      if (ag.colacionTimer && now >= ag.colacionTimer) {
+        ag.colacionTimer = null;
+        if (ag.estado === 'colacion') {
+          ag.estado = 'disponible';
+          ag.vueloAsignado = null;
+          ag.tipoAsignacion = null;
+          changed = true;
+        }
+      }
+    });
+
+    if (changed) {
+      renderAgentesTabla();
+      renderCtrlResumen();
+      renderTimers();
+      renderConflictos();
+    } else {
+      renderTimers();
+    }
+  }, 1000);
+}
+
+function formatearTimer(ms) {
+  if (ms <= 0) return '00:00';
+  const totalSeg = Math.floor(ms / 1000);
+  const min = Math.floor(totalSeg / 60);
+  const seg = totalSeg % 60;
+  return String(min).padStart(2, '0') + ':' + String(seg).padStart(2, '0');
+}
+
+function renderCtrlResumen() {
+  const container = document.getElementById('ctrlResumen');
+  if (!container) return;
+
+  const totalAgentes = ctrlAgentes.length;
+  const disponibles = ctrlAgentes.filter(function(a) { return a.estado === 'disponible' && (!a.libreTimer || Date.now() >= a.libreTimer); }).length;
+  const asignados = ctrlAgentes.filter(function(a) { return a.estado === 'asignado'; }).length;
+  const enColacion = ctrlAgentes.filter(function(a) { return a.estado === 'colacion'; }).length;
+  const libres = ctrlAgentes.filter(function(a) { return a.estado === 'libre' || (a.libreTimer && Date.now() < a.libreTimer); }).length;
+
+  const totalVuelos = ctrlVuelos.length;
+  const pendientes = ctrlVuelos.filter(function(v) { return v.estado === 'pendiente'; }).length;
+  const enCurso = ctrlVuelos.filter(function(v) { return v.estado === 'en_curso'; }).length;
+  const completados = ctrlVuelos.filter(function(v) { return v.estado === 'completado'; }).length;
+
+  let proximaColacion = '—';
+  const agentesConColacion = ctrlAgentes.filter(function(a) { return a.colacionProgramada && a.colacionProgramada > Date.now(); });
+  if (agentesConColacion.length > 0) {
+    agentesConColacion.sort(function(a, b) { return a.colacionProgramada - b.colacionProgramada; });
+    const prox = agentesConColacion[0];
+    proximaColacion = formatearTimer(prox.colacionProgramada - Date.now()) + ' - ' + prox.nombre;
+  }
+
+  container.innerHTML =
+    '<div class="resumen-card"><div class="resumen-value">' + totalAgentes + '</div><div class="resumen-label">Agentes Totales</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + disponibles + '</div><div class="resumen-label">🟢 Disponibles</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--danger);">' + asignados + '</div><div class="resumen-label">🔴 Asignados</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--warning);">' + enColacion + '</div><div class="resumen-label">🍽️ Colación</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:#3b82f6;">' + libres + '</div><div class="resumen-label">⏳ Libres</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value">' + totalVuelos + '</div><div class="resumen-label">✈️ Vuelos</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--warning);">' + pendientes + '</div><div class="resumen-label">Pendientes</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:#3b82f6;">' + enCurso + '</div><div class="resumen-label">En Curso</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--success);">' + completados + '</div><div class="resumen-label">Completados</div></div>' +
+    '<div class="resumen-card"><div class="resumen-value" style="color:var(--accent);font-size:0.9em;">' + proximaColacion + '</div><div class="resumen-label">⏱️ Próxima Colación</div></div>';
+}
+
+function renderAgentesTabla() {
+  const thead = document.getElementById('ctrlAgentesTableHead');
+  const tbody = document.getElementById('ctrlAgentesTableBody');
+  if (!thead || !tbody) return;
+
+  thead.innerHTML = '<tr>' +
+    '<th>RUT</th>' +
+    '<th>Nombre</th>' +
+    '<th>Rol</th>' +
+    '<th>Turno</th>' +
+    '<th>Estado</th>' +
+    '<th>Timer</th>' +
+    '<th>Asignación</th>' +
+    '<th>Colación</th>' +
+    '<th>Acciones</th>' +
+    '</tr>';
+
+  const filtroNombre = (document.getElementById('ctrlFilterAgente')?.value || '').toLowerCase();
+  const filtroEstado = document.getElementById('ctrlFilterEstado')?.value || '';
+  const filtroRol = document.getElementById('ctrlFilterRol')?.value || '';
+
+  let agentesFiltrados = ctrlAgentes.filter(function(ag) {
+    if (filtroNombre && !ag.nombre.toLowerCase().includes(filtroNombre) && !ag.rut.toLowerCase().includes(filtroNombre)) return false;
+    if (filtroEstado && ag.estado !== filtroEstado) return false;
+    if (filtroRol === 'LATAM' && !ag.esLATAM) return false;
+    if (filtroRol === 'OLA' && !ag.esOLA) return false;
+    return true;
+  });
+
+  if (agentesFiltrados.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--text-muted);">No hay agentes que coincidan con los filtros.</td></tr>';
+    return;
+  }
+
+  const now = Date.now();
+  tbody.innerHTML = agentesFiltrados.map(function(ag) {
+    const estadoBadge = ag.estado === 'disponible' ? '<span class="badge badge-disponible">🟢 Disponible</span>' :
+      ag.estado === 'asignado' ? '<span class="badge badge-asignado">🔴 Asignado</span>' :
+      ag.estado === 'colacion' ? '<span class="badge badge-colacion">🍽️ Colación</span>' :
+      '<span class="badge badge-libre">⏳ Libre</span>';
+
+    let timerStr = '—';
+    if (ag.libreTimer && now < ag.libreTimer) {
+      timerStr = '<span class="badge badge-libre">' + formatearTimer(ag.libreTimer - now) + '</span>';
+    } else if (ag.colacionTimer && now < ag.colacionTimer) {
+      timerStr = '<span class="badge badge-colacion">' + formatearTimer(ag.colacionTimer - now) + '</span>';
+    }
+
+    const vueloAsignado = ag.vueloAsignado ? ctrlVuelos.find(function(v) { return v.id === ag.vueloAsignado; }) : null;
+    const asignacionStr = vueloAsignado ? (vueloAsignado.numero + ' ' + vueloAsignado.tipo.substring(0, 3)) : '—';
+
+    let colacionBadge = '';
+    if (ag.turno && ag.turno.entrada) {
+      const [he, me] = ag.turno.entrada.split(':').map(Number);
+      const entradaDate = new Date();
+      entradaDate.setHours(he, me, 0, 0);
+      const horasTrabajadas = (now - entradaDate.getTime()) / (60 * 60 * 1000);
+      if (horasTrabajadas >= 5.5 && ag.estado !== 'colacion' && !ag.colacionTimer) {
+        colacionBadge = '<span class="colacion-badge alerta">⚠️ ' + horasTrabajadas.toFixed(1) + 'h sin colación</span>';
+      } else if (horasTrabajadas >= 4 && horasTrabajadas < 5.5 && ag.estado !== 'colacion' && !ag.colacionTimer) {
+        colacionBadge = '<span class="colacion-badge">🍽️ Colación pendiente</span>';
+      }
+    }
+
+    let acciones = '';
+    if (ag.estado === 'colacion' || (ag.colacionTimer && now < ag.colacionTimer)) {
+      acciones = '<button class="btn btn-success btn-sm" onclick="finalizarColacion(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">✅ Fin Colación</button>';
+    } else if (ag.estado === 'asignado' || (ag.libreTimer && now < ag.libreTimer)) {
+      actions = '<button class="btn btn-ghost btn-sm" onclick="liberarAgente(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">🔓 Liberar</button>';
+    } else {
+      acciones = '<button class="btn btn-ghost btn-sm" onclick="iniciarColacion(\'' + ag.rut.replace(/'/g, "\\'") + '\')" style="padding:2px 6px;font-size:0.75em;">🍽️ Colación</button>';
+    }
+
+    const turnoTxt = ag.turno ? (ag.turno.entradaAMPM + ' - ' + ag.turno.salidaAMPM) : '—';
+    const esLATAMBadge = ag.esLATAM ? ' <span class="badge" style="background:var(--accent-light);color:var(--accent);font-size:0.65em;">LATAM</span>' : '';
+    const esOLABadge = ag.esOLA ? ' <span class="badge" style="background:#3b82f6;color:#fff;font-size:0.65em;">OLA</span>' : '';
+
+    return '<tr>' +
+      '<td class="col-rut">' + escapeHtml(ag.rut) + '</td>' +
+      '<td class="col-nombre">' + escapeHtml(ag.nombre) + esLATAMBadge + esOLABadge + '</td>' +
+      '<td class="col-rol"><span style="font-size:0.8em;">' + escapeHtml(ag.rol) + '</span></td>' +
+      '<td class="col-turno">' + escapeHtml(turnoTxt) + '</td>' +
+      '<td class="col-estado">' + estadoBadge + '</td>' +
+      '<td class="col-timer">' + timerStr + '</td>' +
+      '<td class="col-rol" style="font-size:0.85em;">' + escapeHtml(asignacionStr) + '</td>' +
+      '<td>' + colacionBadge + '</td>' +
+      '<td class="col-acciones">' + acciones + '</td>' +
+      '</tr>';
+  }).join('');
+}
+
+function renderVuelosTabla() {
+  const thead = document.getElementById('ctrlVuelosTableHead');
+  const tbody = document.getElementById('ctrlVuelosTableBody');
+  if (!thead || !tbody) return;
+
+  thead.innerHTML = '<tr>' +
+    '<th>Hora</th>' +
+    '<th>Tipo</th>' +
+    '<th>Vuelo</th>' +
+    '<th>PAX</th>' +
+    '<th>WCHC</th>' +
+    '<th>Agentes Necesarios</th>' +
+    '<th>Estado</th>' +
+    '<th>Acciones</th>' +
+    '</tr>';
+
+  if (ctrlVuelos.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:20px;color:var(--text-muted);">Crea vuelos con "Nuevo Vuelo" para comenzar.</td></tr>';
+    return;
+  }
+
+  const vuelosOrdenados = ctrlVuelos.slice().sort(function(a, b) { return a.hora.localeCompare(b.hora); });
+
+  tbody.innerHTML = vuelosOrdenados.map(function(v) {
+    const necesarios = calcularAgentesNecesarios(v);
+    const estadoBadge = v.estado === 'pendiente' ? '<span class="badge" style="background:var(--text-subtle);color:#fff;">Pendiente</span>' :
+      v.estado === 'en_curso' ? '<span class="badge badge-asignado">En Curso</span>' :
+      '<span class="badge badge-disponible">Completado</span>';
+
+    const fullServiceBadge = v.esFullService ? ' <span class="badge" style="background:var(--accent);color:#fff;font-size:0.65em;">FULL</span>' : '';
+    const tipoBadge = v.tipo === 'ARRIBO' ? '<span class="badge" style="background:var(--accent-light);color:var(--accent);">ARR</span>' : '<span class="badge" style="background:#3b82f6;color:#fff;">EMB</span>';
+
+    return '<tr>' +
+      '<td class="vuelo-hora">' + escapeHtml(v.hora) + '</td>' +
+      '<td class="vuelo-tipo">' + tipoBadge + '</td>' +
+      '<td class="vuelo-numero">' + escapeHtml(v.numero) + fullServiceBadge + '</td>' +
+      '<td class="vuelo-pax">' + v.pax + '</td>' +
+      '<td class="vuelo-pax">' + v.wchc + '</td>' +
+      '<td class="vuelo-agentes">' + necesarios.total + (necesarios.agentesCounter > 0 ? ' (+' + necesarios.agentesCounter + ' counter)' : '') + '</td>' +
+      '<td class="vuelo-estado">' + estadoBadge + '</td>' +
+      '<td><button class="btn btn-ghost btn-sm" onclick="eliminarVuelo(\'' + v.id + '\')" style="padding:2px 6px;font-size:0.75em;">✕</button></td>' +
+      '</tr>';
+  }).join('');
+}
+
+function eliminarVuelo(vueloId) {
+  if (!confirm('¿Eliminar este vuelo?')) return;
+  ctrlVuelos = ctrlVuelos.filter(function(v) { return v.id !== vueloId; });
+  renderVuelosTabla();
+  renderCtrlResumen();
+}
+
+function renderTimeline() {
+  const container = document.getElementById('ctrlTimeline');
+  if (!container) return;
+
+  if (ctrlAgentes.length === 0) {
+    container.innerHTML = '<div class="hint-box">Carga agentes y crea vuelos para ver el timeline.</div>';
+    return;
+  }
+
+  const now = new Date();
+  const horaInicio = 4;
+  const horaFin = 23;
+  const totalMinutos = (horaFin - horaInicio) * 60;
+  const anchoMin = 400;
+
+  let html = '<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">';
+  html += '<div style="min-width:160px;font-size:0.75em;color:var(--text-muted);">Agente / Turno</div>';
+  html += '<div style="flex:1;position:relative;min-width:' + anchoMin + 'px;height:20px;">';
+  for (let h = horaInicio; h <= horaFin; h += 2) {
+    const pct = ((h - horaInicio) * 60 / totalMinutos) * 100;
+    html += '<div style="position:absolute;left:' + pct + '%;font-size:0.65em;color:var(--text-muted);transform:translateX(-50%);">' + String(h).padStart(2, '0') + ':00</div>';
+  }
+  html += '</div></div>';
+
+  ctrlAgentes.slice(0, 20).forEach(function(ag) {
+    const turnoInicio = ag.turno ? ag.turno.entrada : '04:00';
+    const turnoFin = ag.turno ? ag.turno.salida : '13:00';
+    const [hi, mi] = turnoInicio.split(':').map(Number);
+    const [hf, mf] = turnoFin.split(':').map(Number);
+    const inicioMin = (hi - horaInicio) * 60 + mi;
+    const finMin = (hf - horaInicio) * 60 + mf;
+    const totalM = (horaFin - horaInicio) * 60;
+    const leftPct = Math.max(0, Math.min(100, (inicioMin / totalM) * 100));
+    const widthPct = Math.max(2, Math.min(100 - leftPct, ((finMin - inicioMin) / totalM) * 100));
+
+    html += '<div class="timeline-row">';
+    html += '<div class="timeline-label" title="' + escapeHtml(ag.nombre) + '">' + escapeHtml(ag.nombre.substring(0, 22)) + '</div>';
+    html += '<div class="timeline-bar-container">';
+    html += '<div class="timeline-bar ' + (ag.esLATAM ? 'arribo' : 'embarque') + '" style="left:' + leftPct + '%;width:' + widthPct + '%;opacity:0.7;">' + escapeHtml(ag.rol.substring(0, 8)) + '</div>';
+
+    if (ag.estado === 'colacion' || ag.colacionProgramada) {
+      const colInicio = ag.colacionTimer ? (60 - Math.floor((ag.colacionTimer - Date.now()) / 60000)) : 4.5 * 60;
+      const colMin = colInicio;
+      const colLeftPct = Math.max(0, Math.min(100, ((colMin) / totalM) * 100));
+      const colWidthPct = Math.max(2, Math.min(100 - colLeftPct, (60 / totalM) * 100));
+      html += '<div class="timeline-bar colacion" style="left:' + colLeftPct + '%;width:' + colWidthPct + '%;">🍽️</div>';
+    }
+
+    ctrlAsignaciones.filter(function(a) { return a.agenteRut === ag.rut; }).forEach(function(a) {
+      const asigHora = a.inicio ? new Date(a.inicio) : new Date();
+      const asigH = asigHora.getHours();
+      const asigM = asigHora.getMinutes();
+      const asigMin = (asigH - horaInicio) * 60 + asigM;
+      const asigLeftPct = Math.max(0, Math.min(100, (asigMin / totalM) * 100));
+      const asigWidthPct = Math.max(2, Math.min(100 - asigLeftPct, (15 / totalM) * 100));
+      const asigClass = a.tipo === 'arribo' ? 'arribo' : a.tipo === 'embarque' ? 'embarque' : a.tipo === 'colacion' ? 'colacion' : 'libre';
+      const asigLabel = a.tipo === 'arribo' ? 'ARR' : a.tipo === 'embarque' ? 'EMB' : a.tipo === 'colacion' ? 'COL' : 'LIB';
+      html += '<div class="timeline-bar ' + asigClass + '" style="left:' + asigLeftPct + '%;width:' + asigWidthPct + '%;font-size:0.65em;">' + asigLabel + '</div>';
+    });
+
+    html += '</div></div>';
+  });
+
+  container.innerHTML = html;
+}
+
+function renderTimers() {
+  const container = document.getElementById('ctrlTimers');
+  if (!container) return;
+
+  const now = Date.now();
+  const timersActivos = [];
+
+  ctrlAgentes.forEach(function(ag) {
+    if (ag.colacionTimer && now < ag.colacionTimer) {
+      timersActivos.push({
+        tipo: 'colacion',
+        nombre: ag.nombre,
+        rut: ag.rut,
+        fin: ag.colacionTimer,
+        restante: ag.colacionTimer - now,
+        total: 60 * 60 * 1000
+      });
+    }
+    if (ag.libreTimer && now < ag.libreTimer) {
+      timersActivos.push({
+        tipo: 'libre',
+        nombre: ag.nombre,
+        rut: ag.rut,
+        fin: ag.libreTimer,
+        restante: ag.libreTimer - now,
+        total: ag.libreTimer - now + 1000
+      });
+    }
+  });
+
+  if (timersActivos.length === 0) {
+    container.innerHTML = '<div class="hint-box">No hay timers activos.</div>';
+    return;
+  }
+
+  container.innerHTML = timersActivos.map(function(t) {
+    const pct = Math.max(0, Math.min(100, (t.restante / t.total) * 100));
+    const label = t.tipo === 'colacion' ? '🍽️ COLACIÓN' : '⏳ DISPONIBLE';
+    return '<div class="timer-card ' + t.tipo + '">' +
+      '<div class="timer-label">' + label + '</div>' +
+      '<div class="timer-name">' + escapeHtml(t.nombre) + '</div>' +
+      '<div class="timer-value">' + formatearTimer(t.restante) + '</div>' +
+      '<div class="timer-bar"><div class="timer-bar-fill" style="width:' + pct + '%;"></div></div>' +
+      '</div>';
+  }).join('');
+}
+
+function renderConflictos() {
+  const container = document.getElementById('ctrlAlertasContainer');
+  if (!container) return;
+
+  const conflictos = [];
+
+  ctrlVuelos.forEach(function(v) {
+    if (v.estado === 'pendiente') {
+      const necesarios = calcularAgentesNecesarios(v);
+      const disponibles = ctrlAgentes.filter(function(a) {
+        return agenteDisponible(a) && estaEnTurno(a, v.hora);
+      }).length;
+      if (disponibles < necesarios.total) {
+        conflictos.push({
+          tipo: 'danger',
+          texto: '⚠️ Vuelo ' + v.numero + ' (' + v.hora + ') requiere ' + necesarios.total + ' agentes, solo hay ' + disponibles + ' disponibles'
+        });
+      }
+    }
+  });
+
+  ctrlAgentes.forEach(function(ag) {
+    if (!ag.turno || !ag.turno.entrada) return;
+    const [he, me] = ag.turno.entrada.split(':').map(Number);
+    const entradaDate = new Date();
+    entradaDate.setHours(he, me, 0, 0);
+    const horas = (Date.now() - entradaDate.getTime()) / (60 * 60 * 1000);
+    if (horas >= 5.5 && ag.estado !== 'colacion' && !ag.colacionTimer) {
+      conflictos.push({
+        tipo: 'warning',
+        texto: '⚠️ ' + ag.nombre + ' lleva ' + horas.toFixed(1) + 'h sin colación (ingreso ' + ag.turno.entradaAMPM + ')'
+      });
+    }
+  });
+
+  if (conflictos.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = '<h3 style="font-size:0.95em;color:var(--danger);margin:8px 0 6px;">⚠️ Alertas y Conflictos</h3>' +
+    conflictos.map(function(c) {
+      return '<div class="conflict-item ' + c.tipo + '">' + c.texto + '</div>';
+    }).join('');
+}
+
+// Inicializar fecha de control al cargar
+document.addEventListener('DOMContentLoaded', function() {
+  const today = new Date().toISOString().slice(0, 10);
+  ctrlFecha = today;
+});

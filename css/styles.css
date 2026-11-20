@@ -695,3 +695,296 @@ footer p { font-size: 0.85rem; }
 .justify-between { justify-content: space-between; }
 .flex-wrap { flex-wrap: wrap; }
 .w-full { width: 100%; }
+
+/* ── CONTROL AGENTES ──────────────────────────────────────── */
+.timers-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.timer-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  position: relative;
+  overflow: hidden;
+}
+
+.timer-card.colacion {
+  border-color: var(--warning);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.timer-card.libre {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.05);
+}
+
+.timer-card .timer-label {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.timer-card .timer-name {
+  font-weight: 600;
+  font-size: 0.9em;
+  margin: 4px 0;
+}
+
+.timer-card .timer-value {
+  font-size: 1.5em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-card.colacion .timer-value { color: var(--warning); }
+.timer-card.libre .timer-value { color: var(--success); }
+
+.timer-card .timer-bar {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-top: 8px;
+  overflow: hidden;
+}
+
+.timer-card .timer-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 1s linear;
+}
+
+.timer-card.colacion .timer-bar-fill { background: var(--warning); }
+.timer-card.libre .timer-bar-fill { background: var(--success); }
+
+/* Badges de estado */
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-disponible { background: var(--success-bg); color: var(--success); }
+.badge-asignado { background: var(--danger-bg); color: var(--danger); }
+.badge-colacion { background: rgba(245,158,11,0.15); color: var(--warning); }
+.badge-libre { background: rgba(59,130,246,0.15); color: #3b82f6; }
+.badge-alerta { background: var(--danger-bg); color: var(--danger); animation: pulse 2s infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Timeline */
+.timeline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-width: max-content;
+}
+
+.timeline-label {
+  min-width: 160px;
+  font-size: 0.8em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-bar-container {
+  position: relative;
+  height: 28px;
+  background: var(--border);
+  border-radius: 4px;
+  min-width: 400px;
+  flex: 1;
+}
+
+.timeline-bar {
+  position: absolute;
+  height: 100%;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7em;
+  font-weight: 600;
+  color: #fff;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.timeline-bar:hover { opacity: 0.85; }
+
+.timeline-bar.arribo { background: var(--accent); }
+.timeline-bar.embarque { background: #3b82f6; }
+.timeline-bar.colacion { background: var(--warning); }
+.timeline-bar.libre { background: var(--success); }
+
+/* Conflictos */
+.conflict-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-xs);
+  margin-bottom: 6px;
+  font-size: 0.85em;
+}
+
+.conflict-item.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border-left: 3px solid var(--warning);
+}
+
+.conflict-item.danger {
+  background: var(--danger-bg);
+  border-left: 3px solid var(--danger);
+}
+
+/* Drag & drop */
+.agent-row-draggable {
+  cursor: grab;
+  transition: background 0.15s;
+}
+
+.agent-row-draggable:hover {
+  background: var(--stripe);
+}
+
+.agent-row-draggable.dragging {
+  opacity: 0.5;
+}
+
+.vuelo-row-droppable {
+  transition: background 0.15s;
+}
+
+.vuelo-row-droppable.drag-over {
+  background: var(--accent-light);
+  outline: 2px dashed var(--accent);
+}
+
+/* Tabla agentes mejorada */
+.ctrl-agentes-table td {
+  vertical-align: middle;
+  padding: 8px 6px;
+}
+
+.ctrl-agentes-table .col-nombre {
+  min-width: 180px;
+  font-weight: 500;
+}
+
+.ctrl-agentes-table .col-rut {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.ctrl-agentes-table .col-rol {
+  font-size: 0.8em;
+}
+
+.ctrl-agentes-table .col-turno {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+}
+
+.ctrl-agentes-table .col-estado {
+  min-width: 100px;
+}
+
+.ctrl-agentes-table .col-timer {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85em;
+  color: var(--text-muted);
+  min-width: 80px;
+}
+
+.ctrl-agentes-table .col-acciones {
+  min-width: 100px;
+}
+
+/* Vuelos tabla */
+.ctrl-vuelos-table td {
+  vertical-align: middle;
+  padding: 8px 6px;
+}
+
+.ctrl-vuelos-table .vuelo-hora {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.ctrl-vuelos-table .vuelo-numero {
+  font-weight: 600;
+}
+
+.ctrl-vuelos-table .vuelo-tipo {
+  font-size: 0.8em;
+}
+
+.ctrl-vuelos-table .vuelo-pax {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctrl-vuelos-table .vuelo-agentes {
+  font-size: 0.85em;
+}
+
+.ctrl-vuelos-table .vuelo-estado {
+  min-width: 80px;
+}
+
+/* Resumen cards */
+.resumen-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.resumen-card .resumen-value {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.resumen-card .resumen-label {
+  font-size: 0.75em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Colación badge */
+.colacion-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.75em;
+  font-weight: 600;
+  background: var(--warning);
+  color: #fff;
+}
+
+.colacion-badge.alerta {
+  background: var(--danger);
+  animation: pulse 2s infinite;
+}
