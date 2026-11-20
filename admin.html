@@ -831,6 +831,7 @@
       document.getElementById('view-login').classList.remove('active');
       document.getElementById('view-admin').classList.add('active');
       document.getElementById('navAdminBtn').classList.add('active');
+      if (typeof loadOfflineAirlines === 'function') loadOfflineAirlines();
       loadForms();
       loadAirlinesCatalog();
     }
@@ -1037,6 +1038,9 @@
         .then(function(result) {
           var airlines = result.success ? (result.data || []) : [];
           if (airlines.length === 0) {
+            airlines = globalAirlines.slice();
+          }
+          if (airlines.length === 0) {
             container.innerHTML = '<div class="hint-box">No hay aerolíneas en el catálogo.</div>';
             return;
           }
@@ -1050,7 +1054,17 @@
         })
         .catch(function(err) {
           console.error('Error cargando aerolíneas:', err);
-          container.innerHTML = '<div class="hint-box">Error al cargar aerolíneas.</div>';
+          var airlines = globalAirlines.slice();
+          if (airlines.length > 0) {
+            container.innerHTML = airlines.map(function(a) {
+              return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
+                '<span>' + escapeHtml(a) + '</span>' +
+                '<button class="btn btn-danger btn-sm" onclick="removeAirline(\'' + escapeHtml(a).replace(/'/g, "\\'") + '\')">✕</button>' +
+                '</div>';
+            }).join('');
+          } else {
+            container.innerHTML = '<div class="hint-box">Error al cargar aerolíneas.</div>';
+          }
         });
     }
 
@@ -1058,22 +1072,31 @@
       var input = document.getElementById('newAirlineName');
       var name = input.value.trim().toUpperCase();
       if (!name) return;
-      if (!confirm('¿Está seguro de crear la aerolínea "' + name + '"? Se creará una nueva hoja en el Google Spreadsheet.')) return;
-      fetch(GAS_URL + '?action=createSheet&name=' + encodeURIComponent(name))
-        .then(function(r) { return r.json(); })
-        .then(function(result) {
-          if (result.success) {
-            alert('Aerolínea "' + name + '" creada exitosamente con una nueva hoja en el Google Spreadsheet.');
-            input.value = '';
-            loadAirlinesCatalog();
-          } else {
-            alert('Error al crear la aerolínea: ' + (result.error || 'Error desconocido'));
-          }
-        })
-        .catch(function(err) {
-          console.error('Error creando aerolínea:', err);
-          alert('Error al crear la aerolínea.');
-        });
+      if (globalAirlines.includes(name)) {
+        alert('La aerolínea "' + name + '" ya existe en el catálogo.');
+        return;
+      }
+      if (!confirm('¿Está seguro de crear la aerolínea "' + name + '"?')) return;
+
+      globalAirlines.push(name);
+      globalAirlines.sort();
+
+      fetch(GAS_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'saveAirlines', airlines: globalAirlines })
+      })
+      .then(function() {
+        alert('Aerolínea "' + name + '" creada exitosamente.');
+        input.value = '';
+        loadAirlinesCatalog();
+        if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
+      })
+      .catch(function(err) {
+        console.error('Error creando aerolínea:', err);
+        alert('Error al crear la aerolínea.');
+      });
     };
 
     window.removeAirline = function(airlineName) {
@@ -1087,20 +1110,22 @@
         } else if (count === 3) {
           if (!confirm('¿CONFIRMACIÓN FINAL? ¿Está absolutamente seguro de que desea eliminar la aerolínea "' + airlineName + '"? TODOS los registros se borrarán permanentemente. (Intento ' + count + '/3)')) return;
         }
-        fetch(GAS_URL + '?action=deleteAirlineRecords&airline=' + encodeURIComponent(airlineName))
-          .then(function(r) { return r.json(); })
-          .then(function(result) {
-            if (result.success) {
-              alert('Aerolínea "' + airlineName + '" eliminada exitosamente. Se han borrado todos los registros asociados.');
-              loadAirlinesCatalog();
-            } else {
-              alert('Error al eliminar la aerolínea: ' + (result.error || 'Error desconocido'));
-            }
-          })
-          .catch(function(err) {
-            console.error('Error eliminando aerolínea:', err);
-            alert('Error al eliminar la aerolínea.');
-          });
+        globalAirlines = globalAirlines.filter(function(a) { return a !== airlineName; });
+        fetch(GAS_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'saveAirlines', airlines: globalAirlines })
+        })
+        .then(function() {
+          alert('Aerolínea "' + airlineName + '" eliminada exitosamente.');
+          loadAirlinesCatalog();
+          if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
+        })
+        .catch(function(err) {
+          console.error('Error eliminando aerolínea:', err);
+          alert('Error al eliminar la aerolínea.');
+        });
       }
       confirmDelete();
     };
