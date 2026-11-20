@@ -580,3 +580,263 @@ document.addEventListener('focusout', function(e) {
     saveDotacionData();
   }
 }, true);
+
+// ── Reportes ─────────────────────────────────────────────
+function generarResumenReporte() {
+  const fecha = document.getElementById('repoFecha')?.value || '';
+  const supOLA = document.getElementById('repoSupOLA')?.value || '';
+  const supLATAM = document.getElementById('repoSupLATAM')?.value || '';
+  const cdoOLA = document.getElementById('repoCdoOLA')?.value || '';
+  const cdoLATAM = document.getElementById('repoCdoLATAM')?.value || '';
+  const estado = document.getElementById('repoEstado')?.value || '';
+  const op = document.getElementById('repoOp')?.value || '0';
+  const sinTica = document.getElementById('repoSinTica')?.value || '0';
+  const aus = document.getElementById('repoAus')?.value || '0';
+  const ext = document.getElementById('repoExt')?.value || '0';
+  const impacto = document.getElementById('repoImpacto')?.value || '';
+  const fluidez = document.getElementById('repoFluidez')?.value || '';
+  const equipos = document.getElementById('repoEquipos')?.value || '';
+  const coord = document.getElementById('repoCoord')?.value || '';
+  const incidencias = document.getElementById('repoIncidencias')?.value || '';
+  const disciplina = document.getElementById('repoDisciplina')?.value || '';
+  const pendientes = document.getElementById('repoPendientes')?.value || '';
+
+  let txt = '📋 CIERRE DE TURNO: ' + fecha + '\n';
+  txt += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+  txt += '👥 EQUIPO DE TURNO\n';
+  txt += '• Supervisor OLA: ' + (supOLA || 'N/A') + '\n';
+  txt += '• Supervisor LATAM: ' + (supLATAM || 'N/A') + '\n';
+  txt += '• CDO OLA: ' + (cdoOLA || 'N/A') + '\n';
+  txt += '• CDO LATAM: ' + (cdoLATAM || 'N/A') + '\n\n';
+
+  txt += '🟢 1. ESTADO GENERAL\n';
+  txt += 'Cambio de turno en operación: ' + (estado || 'N/A') + '\n\n';
+
+  txt += '👥 2. ASISTENCIA\n';
+  txt += '• Operativos: ' + op + '\n';
+  txt += '• Sin TICA: ' + sinTica + '\n';
+  txt += '• Ausencias: ' + aus + '\n';
+  txt += '• Extensiones: ' + ext + '\n\n';
+
+  txt += '⚠️ 3. IMPACTO OPERACIONAL\n';
+  txt += impacto || 'N/A';
+  txt += '\n\n';
+
+  txt += '✈️ 4. OPERACIÓN (OBSERVACIONES)\n';
+  txt += '• Fluidez de atención: ' + (fluidez || 'N/A') + '\n';
+  txt += '• Equipos: ' + (equipos || 'N/A') + '\n';
+  txt += '• Coordinación: ' + (coord || 'N/A') + '\n\n';
+
+  txt += '📌 6. INCIDENCIAS\n';
+  txt += incidencias || 'N/A';
+  txt += '\n\n';
+
+  txt += '👔 7. DISCIPLINA\n';
+  txt += disciplina || 'N/A';
+  txt += '\n\n';
+
+  txt += '⏳ 8. PENDIENTES DEL TURNO\n';
+  txt += pendientes || 'Ninguno.';
+  txt += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n';
+  txt += '🛎️ LIST@ PARA PRÓXIMAS ASIGNACIONES!';
+
+  const textArea = document.getElementById('reportesTextArea');
+  const modal = document.getElementById('reportesModal');
+  if (textArea) textArea.value = txt;
+  if (modal) modal.classList.add('active');
+}
+
+function closeReportesModal() {
+  const modal = document.getElementById('reportesModal');
+  if (modal) modal.classList.remove('active');
+}
+
+function copyReporteText() {
+  const ta = document.getElementById('reportesTextArea');
+  if (!ta) return;
+  ta.select();
+  navigator.clipboard.writeText(ta.value).then(function() {
+    alert('Reporte copiado al portapapeles.');
+  }).catch(function() {
+    document.execCommand('copy');
+    alert('Reporte copiado al portapapeles.');
+  });
+}
+
+function toggleRepoExtDetalle() {
+  const ext = document.getElementById('repoExt');
+  const detalle = document.getElementById('repoExtDetalle');
+  if (!ext || !detalle) return;
+  const count = parseInt(ext.value) || 0;
+  detalle.style.display = count > 0 ? 'block' : 'none';
+  if (count > 0) {
+    const list = document.getElementById('repoExtList');
+    if (list && list.children.length === 0) {
+      for (let i = 0; i < count; i++) {
+        addRepoExtRow();
+      }
+    }
+  }
+}
+
+function addRepoExtRow() {
+  const list = document.getElementById('repoExtList');
+  if (!list) return;
+  const div = document.createElement('div');
+  div.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center;';
+  div.innerHTML =
+    '<input type="text" placeholder="Agente" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);">' +
+    '<input type="text" placeholder="HHEE" style="width:100px;padding:6px 10px;border:1px solid var(--border);border-radius:6px;background:var(--input-bg);color:var(--text);">' +
+    '<button type="button" class="btn btn-danger btn-sm" onclick="this.parentElement.remove()">✕</button>';
+  list.appendChild(div);
+}
+
+function cargarDatosReportes() {
+  const fecha = document.getElementById('repoFecha')?.value;
+  if (!fecha) return;
+
+  const ausentesList = document.getElementById('repoAusentesList');
+  const sinTicaList = document.getElementById('repoSinTicaList');
+  if (ausentesList) ausentesList.textContent = 'Cargando...';
+  if (sinTicaList) sinTicaList.textContent = 'Cargando...';
+
+  fetch(GAS_URL + '?action=getAusentes&fecha=' + encodeURIComponent(fecha))
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      const data = result.success ? (result.data || []) : [];
+      if (ausentesList) {
+        ausentesList.textContent = data.length > 0
+          ? data.join(', ')
+          : 'Sin ausencias registradas.';
+      }
+    })
+    .catch(function() {
+      if (ausentesList) ausentesList.textContent = 'Sin datos disponibles.';
+    });
+
+  fetch(GAS_URL + '?action=getSinTica&fecha=' + encodeURIComponent(fecha))
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      const data = result.success ? (result.data || []) : [];
+      if (sinTicaList) {
+        sinTicaList.textContent = data.length > 0
+          ? data.join(', ')
+          : 'Sin registros SIN TICA.';
+      }
+    })
+    .catch(function() {
+      if (sinTicaList) sinTicaList.textContent = 'Sin datos disponibles.';
+    });
+}
+
+function guardarReporte() {
+  const fecha = document.getElementById('repoFecha')?.value;
+  if (!fecha) {
+    alert('Seleccione una fecha.');
+    return;
+  }
+
+  const reporte = {
+    fecha: fecha,
+    supOLA: document.getElementById('repoSupOLA')?.value || '',
+    supLATAM: document.getElementById('repoSupLATAM')?.value || '',
+    cdoOLA: document.getElementById('repoCdoOLA')?.value || '',
+    cdoLATAM: document.getElementById('repoCdoLATAM')?.value || '',
+    estado: document.getElementById('repoEstado')?.value || '',
+    op: document.getElementById('repoOp')?.value || '0',
+    sinTica: document.getElementById('repoSinTica')?.value || '0',
+    aus: document.getElementById('repoAus')?.value || '0',
+    ext: document.getElementById('repoExt')?.value || '0',
+    impacto: document.getElementById('repoImpacto')?.value || '',
+    fluidez: document.getElementById('repoFluidez')?.value || '',
+    equipos: document.getElementById('repoEquipos')?.value || '',
+    coord: document.getElementById('repoCoord')?.value || '',
+    incidencias: document.getElementById('repoIncidencias')?.value || '',
+    disciplina: document.getElementById('repoDisciplina')?.value || '',
+    pendientes: document.getElementById('repoPendientes')?.value || ''
+  };
+
+  fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'saveReporte', reporte: reporte })
+  })
+  .then(function() {
+    alert('Reporte guardado exitosamente.');
+    cargarReportes();
+  })
+  .catch(function(err) {
+    console.error('Error guardando reporte:', err);
+    alert('Error al guardar el reporte.');
+  });
+}
+
+function cargarReportes() {
+  const container = document.getElementById('reportesListContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="padding:20px;color:var(--text-muted);">Cargando reportes...</div>';
+
+  fetch(GAS_URL + '?action=getReportes')
+    .then(function(r) { return r.json(); })
+    .then(function(result) {
+      const data = result.success ? (result.data || []) : [];
+      if (data.length === 0) {
+        container.innerHTML = '<div style="padding:20px;color:var(--text-muted);">No hay reportes guardados.</div>';
+        return;
+      }
+      container.innerHTML = data.map(function(rep) {
+        return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid var(--border);">' +
+          '<div><strong>📅 ' + escapeHtml(rep.fecha || '') + '</strong>' +
+          '<br><span style="font-size:0.85em;color:var(--text-muted);">Estado: ' + escapeHtml(rep.estado || 'N/A') + '</span>' +
+          '<br><span style="font-size:0.85em;color:var(--text-muted);">Sup OLA: ' + escapeHtml(rep.supOLA || 'N/A') + ' | Sup LATAM: ' + escapeHtml(rep.supLATAM || 'N/A') + '</span></div>' +
+          '<button class="btn btn-ghost btn-sm" onclick="verReporte(' + JSON.stringify(JSON.stringify(rep)).replace(/"/g, '&quot;') + ')">👁️ Ver</button>' +
+          '</div>';
+      }).join('');
+    })
+    .catch(function(err) {
+      console.error('Error cargando reportes:', err);
+      container.innerHTML = '<div style="padding:20px;color:var(--text-muted);">Error al cargar reportes.</div>';
+    });
+}
+
+function verReporte(repStr) {
+  try {
+    const rep = typeof repStr === 'string' ? JSON.parse(repStr) : repStr;
+    let txt = '📋 CIERRE DE TURNO: ' + (rep.fecha || '') + '\n';
+    txt += '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n';
+    txt += '👥 EQUIPO DE TURNO\n';
+    txt += '• Supervisor OLA: ' + (rep.supOLA || 'N/A') + '\n';
+    txt += '• Supervisor LATAM: ' + (rep.supLATAM || 'N/A') + '\n';
+    txt += '• CDO OLA: ' + (rep.cdoOLA || 'N/A') + '\n';
+    txt += '• CDO LATAM: ' + (rep.cdoLATAM || 'N/A') + '\n\n';
+    txt += '🟢 1. ESTADO GENERAL\n';
+    txt += 'Cambio de turno en operación: ' + (rep.estado || 'N/A') + '\n\n';
+    txt += '👥 2. ASISTENCIA\n';
+    txt += '• Operativos: ' + (rep.op || '0') + '\n';
+    txt += '• Sin TICA: ' + (rep.sinTica || '0') + '\n';
+    txt += '• Ausencias: ' + (rep.aus || '0') + '\n';
+    txt += '• Extensiones: ' + (rep.ext || '0') + '\n\n';
+    txt += '⚠️ 3. IMPACTO OPERACIONAL\n';
+    txt += (rep.impacto || 'N/A') + '\n\n';
+    txt += '✈️ 4. OPERACIÓN (OBSERVACIONES)\n';
+    txt += '• Fluidez de atención: ' + (rep.fluidez || 'N/A') + '\n';
+    txt += '• Equipos: ' + (rep.equipos || 'N/A') + '\n';
+    txt += '• Coordinación: ' + (rep.coord || 'N/A') + '\n\n';
+    txt += '📌 6. INCIDENCIAS\n';
+    txt += (rep.incidencias || 'N/A') + '\n\n';
+    txt += '👔 7. DISCIPLINA\n';
+    txt += (rep.disciplina || 'N/A') + '\n\n';
+    txt += '⏳ 8. PENDIENTES DEL TURNO\n';
+    txt += (rep.pendientes || 'Ninguno.') + '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+
+    const textArea = document.getElementById('reportesTextArea');
+    const modal = document.getElementById('reportesModal');
+    if (textArea) textArea.value = txt;
+    if (modal) modal.classList.add('active');
+  } catch(e) {
+    console.error('Error mostrando reporte:', e);
+  }
+}
+
+window.verReporte = verReporte;

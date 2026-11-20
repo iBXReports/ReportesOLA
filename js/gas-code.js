@@ -137,6 +137,44 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'saveReporte') {
+      var reporteSheet = planSs.getSheetByName('REPORTES');
+      if (!reporteSheet) {
+        reporteSheet = planSs.insertSheet('REPORTES');
+        reporteSheet.getRange(1, 1, 1, 18).setValues([[
+          'Fecha', 'Supervisor OLA', 'Supervisor LATAM', 'CDO OLA', 'CDO LATAM',
+          'Estado', 'Operativos', 'Sin TICA', 'Ausencias', 'Extensiones',
+          'Impacto', 'Fluidez', 'Equipos', 'Coordinación', 'Incidencias',
+          'Disciplina', 'Pendientes', 'Fecha Registro'
+        ]]);
+      }
+      var rep = body.reporte || {};
+      var now = new Date();
+      var fechaReg = now.toLocaleDateString('es-ES') + ' ' + now.toLocaleTimeString('es-ES');
+      reporteSheet.appendRow([
+        rep.fecha || '',
+        rep.supOLA || '',
+        rep.supLATAM || '',
+        rep.cdoOLA || '',
+        rep.cdoLATAM || '',
+        rep.estado || '',
+        rep.op || '',
+        rep.sinTica || '',
+        rep.aus || '',
+        rep.ext || '',
+        rep.impacto || '',
+        rep.fluidez || '',
+        rep.equipos || '',
+        rep.coord || '',
+        rep.incidencias || '',
+        rep.disciplina || '',
+        rep.pendientes || '',
+        fechaReg
+      ]);
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Reporte guardado' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var registros = body.registros || [];
     var sheet = flightSs.getSheetByName('DATABASE') || flightSs.getSheets()[0];
 
@@ -360,6 +398,63 @@ function doGet(e) {
         }
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Aerolínea eliminada' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'getReportes') {
+      var repSheet = planSs.getSheetByName('REPORTES');
+      if (!repSheet || repSheet.getLastRow() === 0) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var repData = repSheet.getDataRange().getValues();
+      var repHeaders = repData[0];
+      var reportes = repData.slice(1).map(function(row) {
+        var obj = {};
+        repHeaders.forEach(function(h, i) {
+          obj[h] = row[i] !== undefined ? row[i] : '';
+        });
+        return obj;
+      }).reverse();
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: reportes }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'getAusentes') {
+      var fecha = e.parameter.fecha;
+      var ausentes = [];
+      if (fecha) {
+        var ctrlSheet = planSs.getSheetByName('CONTROL');
+        if (ctrlSheet && ctrlSheet.getLastRow() > 1) {
+          var ctrlData = ctrlSheet.getDataRange().getValues();
+          for (var q = 1; q < ctrlData.length; q++) {
+            var row = ctrlData[q];
+            if (row[0] === 'AUSENTE' && row[1] === fecha) {
+              ausentes.push(row[2] || '');
+            }
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: ausentes }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'getSinTica') {
+      var fecha = e.parameter.fecha;
+      var sinTica = [];
+      if (fecha) {
+        var ctrlSheet2 = planSs.getSheetByName('CONTROL');
+        if (ctrlSheet2 && ctrlSheet2.getLastRow() > 1) {
+          var ctrlData2 = ctrlSheet2.getDataRange().getValues();
+          for (var r = 1; r < ctrlData2.length; r++) {
+            var row2 = ctrlData2[r];
+            if (row2[0] === 'SIN TICA' && row2[1] === fecha) {
+              sinTica.push(row2[2] || '');
+            }
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: sinTica }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
