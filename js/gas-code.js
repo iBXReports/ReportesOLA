@@ -36,6 +36,27 @@ function doPost(e) {
       if (!found) {
         configSheet.appendRow(['airlines', JSON.stringify(airlines)]);
       }
+      airlines.forEach(function(name) {
+        if (!flightSs.getSheetByName(name)) {
+          var newSheet = flightSs.insertSheet(name);
+          newSheet.getRange(1, 1, 1, 14).setValues([[
+            'Fecha Registro',
+            'Hora Registro',
+            'Operación',
+            'Aerolínea',
+            'Vuelo',
+            'ETA/ETD',
+            'Puerta',
+            'Hora Inicio',
+            'Hora Término',
+            'Total Asistencias',
+            'Nombre Pasajero',
+            'Atendido Por',
+            'Asistencia',
+            'Estado del Pasajero'
+          ]]);
+        }
+      });
       return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Aerolineas guardadas' }))
         .setMimeType(ContentService.MimeType.JSON);
     }

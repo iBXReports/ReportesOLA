@@ -1030,6 +1030,21 @@
       document.getElementById('info-strip-text').textContent = 'Mostrando ' + allSheetData.length + ' de ' + allSheetData.length + ' registros';
     };
 
+    function renderAirlinesCatalog(airlines) {
+      var container = document.getElementById('adminAirlinesUI');
+      if (!airlines || airlines.length === 0) {
+        container.innerHTML = '<div class="hint-box">No hay aerolíneas en el catálogo.</div>';
+        return;
+      }
+      container.innerHTML = airlines.map(function(a) {
+        var name = typeof a === 'object' ? (a.nombre || a.name || a.aerolínea || a.aerolinea || a.airline || JSON.stringify(a)) : a;
+        return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
+          '<span>' + escapeHtml(name) + '</span>' +
+          '<button class="btn btn-danger btn-sm" onclick="removeAirline(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">✕</button>' +
+          '</div>';
+      }).join('');
+    }
+
     function loadAirlinesCatalog() {
       var container = document.getElementById('adminAirlinesUI');
       container.innerHTML = '<div class="hint-box">Cargando aerolíneas...</div>';
@@ -1040,31 +1055,11 @@
           if (airlines.length === 0) {
             airlines = globalAirlines.slice();
           }
-          if (airlines.length === 0) {
-            container.innerHTML = '<div class="hint-box">No hay aerolíneas en el catálogo.</div>';
-            return;
-          }
-          container.innerHTML = airlines.map(function(a, i) {
-            var name = typeof a === 'object' ? (a.nombre || a.name || a.aerolínea || a.aerolinea || a.airline || JSON.stringify(a)) : a;
-            return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
-              '<span>' + escapeHtml(name) + '</span>' +
-              '<button class="btn btn-danger btn-sm" onclick="removeAirline(\'' + escapeHtml(name).replace(/'/g, "\\'") + '\')">✕</button>' +
-              '</div>';
-          }).join('');
+          renderAirlinesCatalog(airlines);
         })
         .catch(function(err) {
           console.error('Error cargando aerolíneas:', err);
-          var airlines = globalAirlines.slice();
-          if (airlines.length > 0) {
-            container.innerHTML = airlines.map(function(a) {
-              return '<div class="list-item" style="display:flex;justify-content:space-between;align-items:center;">' +
-                '<span>' + escapeHtml(a) + '</span>' +
-                '<button class="btn btn-danger btn-sm" onclick="removeAirline(\'' + escapeHtml(a).replace(/'/g, "\\'") + '\')">✕</button>' +
-                '</div>';
-            }).join('');
-          } else {
-            container.innerHTML = '<div class="hint-box">Error al cargar aerolíneas.</div>';
-          }
+          renderAirlinesCatalog(globalAirlines.slice());
         });
     }
 
@@ -1090,7 +1085,7 @@
       .then(function() {
         alert('Aerolínea "' + name + '" creada exitosamente.');
         input.value = '';
-        loadAirlinesCatalog();
+        renderAirlinesCatalog(globalAirlines);
         if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
       })
       .catch(function(err) {
@@ -1119,7 +1114,7 @@
         })
         .then(function() {
           alert('Aerolínea "' + airlineName + '" eliminada exitosamente.');
-          loadAirlinesCatalog();
+          renderAirlinesCatalog(globalAirlines);
           if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
         })
         .catch(function(err) {
