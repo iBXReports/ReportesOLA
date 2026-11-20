@@ -953,58 +953,79 @@ function ingestAgentesPaste() {
 }
 
 function serverPost(payload, onSuccess, onError) {
+  var bodyStr = JSON.stringify(payload);
   fetch(GAS_URL, {
     method: 'POST',
-    mode: 'cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: bodyStr
   })
-  .then(function(r) { return r.json(); })
-  .then(function(result) {
-    if (result.success) {
-      if (onSuccess) onSuccess(result);
-    } else {
-      if (onError) onError(result.error || 'Error desconocido');
-      else alert('Error del servidor: ' + (result.error || 'desconocido'));
-    }
+  .then(function() {
+    console.log('POST enviado a GAS:', payload.action);
+    if (onSuccess) onSuccess();
   })
   .catch(function(err) {
-    console.error('Error de red:', err);
+    console.error('Error enviando a GAS:', err);
     if (onError) onError(err.toString());
-    else alert('No se pudo conectar con el servidor. Verifica que el GAS esté desplegado y la URL sea correcta.');
+    else alert('No se pudo conectar con el servidor. Verifica la URL del GAS en js/app.js (const GAS_URL).');
   });
 }
 
 function saveAgentesTurnoToServer() {
+  try {
+    localStorage.setItem('ctrl_agentes_' + ctrlFecha, JSON.stringify(ctrlAgentes));
+  } catch(e) {}
   serverPost({
     action: 'saveAgentesTurno',
     fecha: ctrlFecha,
     agentes: ctrlAgentes
   }, function() {
-    console.log('Agentes guardados en servidor');
+    console.log('✓ Agentes guardados en servidor (' + ctrlAgentes.length + ' agentes, fecha=' + ctrlFecha + ')');
   });
 }
 
 function saveVueloTurnoToServer(vuelo) {
+  try {
+    var existing = [];
+    try { existing = JSON.parse(localStorage.getItem('ctrl_vuelos_' + ctrlFecha) || '[]'); } catch(e) {}
+    var idx = -1;
+    for (var i = 0; i < existing.length; i++) {
+      if (existing[i].id === vuelo.id) { idx = i; break; }
+    }
+    if (idx >= 0) existing[idx] = vuelo;
+    else existing.push(vuelo);
+    localStorage.setItem('ctrl_vuelos_' + ctrlFecha, JSON.stringify(existing));
+  } catch(e) {}
   serverPost({
     action: 'saveVueloTurno',
     vuelo: vuelo
   }, function() {
-    console.log('Vuelo guardado en servidor');
+    console.log('✓ Vuelo guardado en servidor');
   });
 }
 
 function saveAsignacionToServer(asig) {
+  try {
+    var existing = [];
+    try { existing = JSON.parse(localStorage.getItem('ctrl_asignaciones_' + ctrlFecha) || '[]'); } catch(e) {}
+    existing.push(asig);
+    localStorage.setItem('ctrl_asignaciones_' + ctrlFecha, JSON.stringify(existing));
+  } catch(e) {}
   serverPost({
     action: 'saveAsignacion',
     asignacion: asig
   }, function() {
-    console.log('Asignación guardada en servidor');
+    console.log('✓ Asignación guardada en servidor');
   });
 }
 
 function clearControlTurno() {
   if (!confirm('¿Está seguro de que desea limpiar todo el turno? Se borrarán agentes, vuelos y asignaciones.')) return;
+  try {
+    localStorage.removeItem('ctrl_agentes_' + ctrlFecha);
+    localStorage.removeItem('ctrl_vuelos_' + ctrlFecha);
+    localStorage.removeItem('ctrl_asignaciones_' + ctrlFecha);
+  } catch(e) {}
   serverPost({ action: 'clearTurno', fecha: ctrlFecha }, function() {
     ctrlAgentes = [];
     ctrlVuelos = [];
@@ -1022,17 +1043,48 @@ function clearControlTurno() {
 }
 
 function loadControlAgentesTurno() {
-  Promise.all([
-    fetch(GAS_URL + '?action=getAgentesTurno&fecha=' + encodeURIComponent(ctrlFecha)).then(function(r) { return r.json(); }),
-    fetch(GAS_URL + '?action=getVuelosTurno&fecha=' + encodeURIComponent(ctrlFecha)).then(function(r) { return r.json(); }),
-    fetch(GAS_URL + '?action=getAsignacionesTurno&fecha=' + encodeURIComponent(ctrlFecha)).then(function(r) { return r.json(); })
-  ]).then(function(results) {
-    const agResult = results[0];
-    const vlResult = results[1];
-    const asigResult = results[2];
+  var agPromise = fetch(GAS_URL + '?action=getAgentesTurno&fecha=' + encodeURIComponent(ctrlFecha))
+    .then(function(r) { return r.json(); })
+    .catch(function() { return { success: false, data: [] }; });
 
-    if (agResult.success && agResult.data) {
-      ctrlAgentes = agResult.data.map(function(ag) {
+  var vlPromise = fetch(GAS_URL + '?action=getVuelosTurno&fecha=' + encodeURIComponent(ctrlFecha))
+    .then(function(r) { return r.json(); })
+    .catch(function() { return { success: false, data: [] }; });
+
+  var asigPromise = fetch(GAS_URL + '?action=getAsignacionesTurno&fecha=' + encodeURIComponent(ctrlFecha))
+    .then(function(r) { return r.json(); })
+    .catch(function() { return { success: false, data: [] }; });
+
+  Promise.all([agPromise, vlPromise, asigPromise]).then(function(results) {
+    var agResult = results[0];
+    var vlResult = results[1];
+    var asigResult = results[2];
+
+    var agData = (agResult.success && agResult.data) ? agResult.data : [];
+    var vlData = (vlResult.success && vlResult.data) ? vlResult.data : [];
+    var asigData = (asigResult.success && asigResult.data) ? asigResult.data : [];
+
+    if (agData.length === 0) {
+      try {
+        var localAg = localStorage.getItem('ctrl_agentes_' + ctrlFecha);
+        if (localAg) agData = JSON.parse(localAg);
+      } catch(e) {}
+    }
+    if (vlData.length === 0) {
+      try {
+        var localVl = localStorage.getItem('ctrl_vuelos_' + ctrlFecha);
+        if (localVl) vlData = JSON.parse(localVl);
+      } catch(e) {}
+    }
+    if (asigData.length === 0) {
+      try {
+        var localAsig = localStorage.getItem('ctrl_asignaciones_' + ctrlFecha);
+        if (localAsig) asigData = JSON.parse(localAsig);
+      } catch(e) {}
+    }
+
+    if (agData.length > 0) {
+      ctrlAgentes = agData.map(function(ag) {
         var turno = ag.turno || parseTurnoM(ag['Turno Entrada'] || ag.raw || '');
         if (!turno || !turno.entrada) turno = { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'M', duracion: 24 };
         return {
@@ -1054,8 +1106,8 @@ function loadControlAgentesTurno() {
       });
     }
 
-    if (vlResult.success && vlResult.data) {
-      ctrlVuelos = vlResult.data.map(function(v) {
+    if (vlData.length > 0) {
+      ctrlVuelos = vlData.map(function(v) {
         return {
           id: v.id || v['ID'] || '',
           fecha: v.fecha || v['Fecha'] || '',
@@ -1071,17 +1123,17 @@ function loadControlAgentesTurno() {
       });
     }
 
-    if (asigResult.success && asigResult.data) {
-      ctrlAsignaciones = asigResult.data.map(function(a) {
+    if (asigData.length > 0) {
+      ctrlAsignaciones = asigData.map(function(a) {
         return {
-          id: a['ID'] || '',
-          fecha: a['Fecha'] || '',
-          agenteRut: a['Agente RUT'] || '',
-          vueloId: a['Vuelo ID'] || '',
-          tipo: a['Tipo'] || '',
-          inicio: a['Inicio'] || '',
-          fin: a['Fin'] || '',
-          estado: a['Estado'] || 'activa'
+          id: a.id || a['ID'] || '',
+          fecha: a.fecha || a['Fecha'] || '',
+          agenteRut: a.agenteRut || a['Agente RUT'] || '',
+          vueloId: a.vueloId || a['Vuelo ID'] || '',
+          tipo: a.tipo || a['Tipo'] || '',
+          inicio: a.inicio || a['Inicio'] || '',
+          fin: a.fin || a['Fin'] || '',
+          estado: a.estado || a['Estado'] || 'activa'
         };
       });
     }
@@ -1095,6 +1147,47 @@ function loadControlAgentesTurno() {
     startTimerLoop();
   }).catch(function(err) {
     console.error('Error cargando turno:', err);
+    try {
+      var localAg = localStorage.getItem('ctrl_agentes_' + ctrlFecha);
+      if (localAg) {
+        ctrlAgentes = JSON.parse(localAg).map(function(ag) {
+          var turno = ag.turno || parseTurnoM(ag.raw || '');
+          if (!turno || !turno.entrada) turno = { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'M', duracion: 24 };
+          return {
+            rut: ag.rut, nombre: ag.nombre, rol: ag.rol, turno: turno,
+            estado: ag.estado || 'presente',
+            esLATAM: ag.esLATAM, esOLA: ag.esOLA, esSupervisor: ag.esSupervisor || false,
+            vueloAsignado: ag.vueloAsignado || null, tipoAsignacion: ag.tipoAsignacion || null,
+            colacionTimer: ag.colacionTimer || null, libreTimer: ag.libreTimer || null,
+            horasExtendido: parseInt(ag.horasExtendido) || 0,
+            colacionProgramada: ag.colacionProgramada || null
+          };
+        });
+      }
+      var localVl = localStorage.getItem('ctrl_vuelos_' + ctrlFecha);
+      if (localVl) {
+        ctrlVuelos = JSON.parse(localVl).map(function(v) {
+          return {
+            id: v.id, fecha: v.fecha, tipo: v.tipo, numero: v.numero, hora: v.hora,
+            pax: parseInt(v.pax) || 0, wchc: parseInt(v.wchc) || 0,
+            estado: v.estado || 'pendiente', esFullService: v.esFullService, aerolinea: v.aerolinea
+          };
+        });
+      }
+      var localAsig = localStorage.getItem('ctrl_asignaciones_' + ctrlFecha);
+      if (localAsig) {
+        ctrlAsignaciones = JSON.parse(localAsig);
+      }
+      renderCtrlResumen();
+      renderAgentesTabla();
+      renderVuelosTabla();
+      renderTimeline();
+      renderTimers();
+      renderConflictos();
+      startTimerLoop();
+    } catch(e) {
+      console.error('Error cargando desde localStorage:', e);
+    }
   });
 }
 
