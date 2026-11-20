@@ -1529,8 +1529,9 @@ function renderAgentesTabla() {
   const filtroEstado = document.getElementById('ctrlFilterEstado')?.value || '';
   const filtroRol = document.getElementById('ctrlFilterRol')?.value || '';
 
-  var now = new Date();
-  var horaActual = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  const now = Date.now();
+  var ahora = new Date(now);
+  var horaActual = String(ahora.getHours()).padStart(2, '0') + ':' + String(ahora.getMinutes()).padStart(2, '0');
 
   let agentesFiltrados = ctrlAgentes.filter(function(ag) {
     if (ag.estado !== 'ausente' && !estaEnTurno(ag, horaActual)) return false;
@@ -1553,7 +1554,6 @@ function renderAgentesTabla() {
     return;
   }
 
-  const now = Date.now();
   tbody.innerHTML = agentesFiltrados.map(function(ag) {
     const estadoBadge = ag.estado === 'presente' ? '<span class="badge badge-disponible">🟢 Presente</span>' :
       ag.estado === 'ausente' ? '<span class="badge" style="background:var(--danger-bg);color:var(--danger);">🔴 Ausente</span>' :
