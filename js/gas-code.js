@@ -241,6 +241,100 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    if (action === 'getAirlines') {
+      var configSheet = ss.getSheetByName('CONFIG');
+      if (!configSheet || configSheet.getLastRow() === 0) {
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var cfgData = configSheet.getDataRange().getValues();
+      for (var k = 1; k < cfgData.length; k++) {
+        if (cfgData[k][0] === 'airlines') {
+          var airlinesList = [];
+          try { airlinesList = JSON.parse(cfgData[k][1] || '[]'); } catch (err) { airlinesList = []; }
+          return ContentService.createTextOutput(JSON.stringify({ success: true, data: airlinesList }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'createSheet') {
+      var name = e.parameter.name || '';
+      if (!name) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Falta nombre' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      if (ss.getSheetByName(name)) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'La hoja ya existe' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      ss.insertSheet(name);
+      var configSheet2 = ss.getSheetByName('CONFIG');
+      if (!configSheet2) {
+        configSheet2 = ss.insertSheet('CONFIG');
+        configSheet2.getRange('A1').setValue('key');
+        configSheet2.getRange('B1').setValue('value');
+      }
+      var cfgData2 = configSheet2.getRange('A2:B' + configSheet2.getLastRow()).getValues();
+      var airlinesList2 = [];
+      var found2 = false;
+      for (var m = 1; m < cfgData2.length; m++) {
+        if (cfgData2[m][0] === 'airlines') {
+          try { airlinesList2 = JSON.parse(cfgData2[m][1] || '[]'); } catch (err) { airlinesList2 = []; }
+          if (airlinesList2.indexOf(name) === -1) {
+            airlinesList2.push(name);
+            configSheet2.getRange(m + 1, 2).setValue(JSON.stringify(airlinesList2));
+          }
+          found2 = true;
+          break;
+        }
+      }
+      if (!found2) {
+        airlinesList2.push(name);
+        configSheet2.appendRow(['airlines', JSON.stringify(airlinesList2)]);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Aerolínea creada' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    if (action === 'deleteAirlineRecords') {
+      var airline = e.parameter.airline || '';
+      if (!airline) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Falta aerolínea' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var dbSheet = ss.getSheetByName('DATABASE');
+      if (dbSheet && dbSheet.getLastRow() > 1) {
+        var dbData = dbSheet.getDataRange().getValues();
+        for (var n = dbData.length - 1; n >= 1; n--) {
+          if ((dbData[n][3] || '') === airline) {
+            dbSheet.deleteRow(n + 1);
+          }
+        }
+      }
+      var airSheet = ss.getSheetByName(airline);
+      if (airSheet) {
+        ss.deleteSheet(airSheet);
+      }
+      var configSheet3 = ss.getSheetByName('CONFIG');
+      if (configSheet3 && configSheet3.getLastRow() > 1) {
+        var cfgData3 = configSheet3.getRange('A2:B' + configSheet3.getLastRow()).getValues();
+        for (var p = 1; p < cfgData3.length; p++) {
+          if (cfgData3[p][0] === 'airlines') {
+            var airlinesList3 = [];
+            try { airlinesList3 = JSON.parse(cfgData3[p][1] || '[]'); } catch (err) { airlinesList3 = []; }
+            airlinesList3 = airlinesList3.filter(function(a) { return a !== airline; });
+            configSheet3.getRange(p + 1, 2).setValue(JSON.stringify(airlinesList3));
+            break;
+          }
+        }
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Aerolínea eliminada' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var sheet = ss.getSheetByName('DATABASE') || ss.getSheets()[0];
     var data = sheet.getDataRange().getValues();
     if (data.length === 0) {
