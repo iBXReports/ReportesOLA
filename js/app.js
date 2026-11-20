@@ -2,7 +2,7 @@
 // Spreadsheet vuelos/aerolineas/pasajeros: https://docs.google.com/spreadsheets/d/1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc
 // Spreadsheet dotacion/planificacion: https://docs.google.com/spreadsheets/d/13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA
 // Ejemplo de URL: https://script.google.com/macros/s/XXXXXXX/exec
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzCZVLoVaBTMQFK-4WUd-87jFZpJQ6l3-kLSL_t7lrdFXuLaW9L_46AcQyEH_gPG4Bp_w/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzwlG0xbiONfVBJw5OGU0DHhzEv7p4JkeRsPLZ9to4pq3ZngDNMheMua389kNUhu9wcnA/exec';
 
 function initSupabase() {
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
