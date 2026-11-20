@@ -1085,6 +1085,7 @@
       .then(function() {
         alert('Aerolínea "' + name + '" creada exitosamente.');
         input.value = '';
+        localStorage.setItem('cargo_airlines_offline', JSON.stringify(globalAirlines));
         renderAirlinesCatalog(globalAirlines);
         if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
       })
@@ -1114,6 +1115,7 @@
         })
         .then(function() {
           alert('Aerolínea "' + airlineName + '" eliminada exitosamente.');
+          localStorage.setItem('cargo_airlines_offline', JSON.stringify(globalAirlines));
           renderAirlinesCatalog(globalAirlines);
           if (typeof renderFormAirlinesDropdown === 'function') renderFormAirlinesDropdown();
         })

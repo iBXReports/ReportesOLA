@@ -63,7 +63,7 @@ function togglePmrFrame() {
   }
 }
 
-// ── Aerolíneas Offline ───────────────────────────────────────
+// ── Aerolíneas ─────────────────────────────────────────────
 const OFFLINE_AIRLINES = ["DELTA","AIRFRANCE","KLM","AIRCANADA","AVIANCA","AEROLINEAS ARGENTINAS","ARAJET","BOA","BRITISH","COPA","IBERIA","LEVEL","QANTAS"];
 let globalAirlines = [];
 function loadOfflineAirlines() {
@@ -74,6 +74,20 @@ function loadOfflineAirlines() {
     globalAirlines = [...OFFLINE_AIRLINES];
   }
   renderFormAirlinesDropdown();
+  syncAirlinesFromServer();
+}
+async function syncAirlinesFromServer() {
+  try {
+    const resp = await fetch(GAS_URL + '?action=getAirlines');
+    const result = await resp.json();
+    if (result.success && result.data && result.data.length > 0) {
+      globalAirlines = result.data;
+      localStorage.setItem('cargo_airlines_offline', JSON.stringify(globalAirlines));
+      renderFormAirlinesDropdown();
+    }
+  } catch(e) {
+    console.warn('No se pudo sincronizar aerolíneas del servidor:', e);
+  }
 }
 function renderFormAirlinesDropdown() {
   const select = document.getElementById('aerolinea');
@@ -192,7 +206,6 @@ function generateConsolidadoTexto(payload) {
   const noReq     = payload.pasajeros.filter(p => p.estado === "NO REQUIERE ASISTENCIA");
   let txt = `✈️${payload.tipoOperacion} Finalizado: ${payload.vuelo}\n`;
   txt += `⏰ETA/ETD: ${payload.etaEtd}\n🚪Puerta : ${payload.puerta}\n`;
-  txt += `🕧Hora de Inicio : ${payload.horaInicio}\n🕧Hora de Termino : ${payload.horaTermino}\n`;
   txt += `🧑Asistencias: # de asistencias ${asistidos.length} / ${totalPax}\nPAX (LISTADO DE PASAJEROS):\n`;
   if (!payload.pasajeros.length) txt += "SIN PASAJEROS REGISTRADOS\n";
   else payload.pasajeros.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} (${p.estado}) - ATENDIDO POR: ${p.agente||'SIN ASIGNAR'}\n`; });
@@ -242,8 +255,6 @@ async function sendFormToServer() {
     vuelo,
     etaEtd: document.getElementById('etaEtd').value,
     puerta: document.getElementById('puerta').value.toUpperCase(),
-    horaInicio: document.getElementById('horaInicio').value,
-    horaTermino: document.getElementById('horaTermino').value,
     totalAsistencias: totalAsist,
     agentes: agentesArray.join(" - "),
     pasajeros: listaPasajeros,
@@ -262,8 +273,6 @@ async function sendFormToServer() {
     vuelo: payload.vuelo,
     etaEtd: payload.etaEtd,
     puerta: payload.puerta,
-    horaInicio: payload.horaInicio,
-    horaTermino: payload.horaTermino,
     totalAsistencias: payload.totalAsistencias,
     nombrePasajero: p.nombre,
     atendidoPor: p.agente || '',
