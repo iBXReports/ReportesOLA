@@ -215,8 +215,10 @@
                 <label>⚠️ Estado</label>
                 <select id="ctrlFilterEstado" onchange="renderAgentesTabla()" style="padding:6px 10px;">
                   <option value="">Todos</option>
-                  <option value="disponible">🟢 Disponible</option>
-                  <option value="asignado">🔴 Asignado</option>
+                  <option value="presente">🟢 Presente</option>
+                  <option value="ausente">🔴 Ausente</option>
+                  <option value="pendiente">🟡 Pendiente</option>
+                  <option value="asignado">🔵 Asignado</option>
                   <option value="colacion">🍽️ Colación</option>
                   <option value="libre">⏳ Libre (timer)</option>
                 </select>
@@ -940,6 +942,9 @@
       if (target) target.classList.add('active');
       document.querySelectorAll('.admin-sub-tab').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
+      if (tabName === 'control-agentes') {
+        if (typeof loadControlAgentesTurno === 'function') loadControlAgentesTurno();
+      }
     }
 
     async function loadForms() {

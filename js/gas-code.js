@@ -1,12 +1,7 @@
 var FLIGHT_SPREADSHEET_ID = '1toTzYwuBvz7vaXNVGtWyVSevHWOZdooEoKjR-3wKlnc';
-var PLAN_SPREADSHEET_ID = '13oIthxggFMQP8l_4RHCyQ7XjvbVtMq0EMRaDNN2e2TA';
 
 function getFlightSpreadsheet() {
   return SpreadsheetApp.openById(FLIGHT_SPREADSHEET_ID);
-}
-
-function getPlanSpreadsheet() {
-  return SpreadsheetApp.openById(PLAN_SPREADSHEET_ID);
 }
 
 function doPost(e) {
@@ -14,7 +9,6 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var action = body.action || 'write';
     var flightSs = getFlightSpreadsheet();
-    var planSs = getPlanSpreadsheet();
 
     if (action === 'saveAirlines') {
       var configSheet = flightSs.getSheetByName('CONFIG') || flightSs.getSheets()[0];
@@ -63,9 +57,9 @@ function doPost(e) {
 
     if (action === 'saveAgents') {
       var agents = body.agents || [];
-      var agentSheet = planSs.getSheetByName('AGENTES');
+      var agentSheet = flightSs.getSheetByName('AGENTES');
       if (!agentSheet) {
-        agentSheet = planSs.insertSheet('AGENTES');
+        agentSheet = flightSs.insertSheet('AGENTES');
       }
       if (agentSheet.getLastRow() === 0) {
         agentSheet.getRange(1, 1, 1, 4).setValues([['RUT', 'Nombre', 'Cargo', 'Proximos Turnos']]);
@@ -81,9 +75,9 @@ function doPost(e) {
     }
 
     if (action === 'saveDotacion') {
-      var dotacionSheet = planSs.getSheetByName('DOTACION');
+      var dotacionSheet = flightSs.getSheetByName('DOTACION');
       if (!dotacionSheet) {
-        dotacionSheet = planSs.insertSheet('DOTACION');
+        dotacionSheet = flightSs.insertSheet('DOTACION');
         dotacionSheet.getRange(1, 1, 1, 2).setValues([['Fecha', 'Datos']]);
       }
       var fecha = body.fecha;
@@ -110,7 +104,7 @@ function doPost(e) {
 
     if (action === 'clearDotacion') {
       var fecha = body.fecha;
-      var dotacionSheet = planSs.getSheetByName('DOTACION');
+      var dotacionSheet = flightSs.getSheetByName('DOTACION');
       if (!dotacionSheet || !fecha) {
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'No encontrado' }))
           .setMimeType(ContentService.MimeType.JSON);
@@ -138,9 +132,9 @@ function doPost(e) {
     }
 
     if (action === 'saveReporte') {
-      var reporteSheet = planSs.getSheetByName('REPORTES');
+      var reporteSheet = flightSs.getSheetByName('REPORTES');
       if (!reporteSheet) {
-        reporteSheet = planSs.insertSheet('REPORTES');
+        reporteSheet = flightSs.insertSheet('REPORTES');
         reporteSheet.getRange(1, 1, 1, 18).setValues([[
           'Fecha', 'Supervisor OLA', 'Supervisor LATAM', 'CDO OLA', 'CDO LATAM',
           'Estado', 'Operativos', 'Sin TICA', 'Ausencias', 'Extensiones',
@@ -175,131 +169,115 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ── CONTROL AGENTES ──────────────────────────────────────
+    // ── CONTROL AGENTES (usando CONFIG del spreadsheet de vuelos) ──
     if (action === 'saveAgentesTurno') {
-      var agSheet = planSs.getSheetByName('AGENTES_TURNO');
-      if (!agSheet) {
-        agSheet = planSs.insertSheet('AGENTES_TURNO');
-        agSheet.getRange(1, 1, 1, 11).setValues([[
-          'RUT', 'Nombre', 'Rol', 'Turno Entrada', 'Turno Salida', 'Es LATAM', 'Es OLA', 'Es Supervisor', 'Estado', 'Horas Extendido', 'Fecha'
-        ]]);
+      var configSheet = flightSs.getSheetByName('CONFIG');
+      if (!configSheet) {
+        configSheet = flightSs.insertSheet('CONFIG');
+        configSheet.getRange('A1').setValue('key');
+        configSheet.getRange('B1').setValue('value');
       }
       var fecha = body.fecha || '';
       var agentes = body.agentes || [];
-      var existingAg = agSheet.getRange('A2:K' + agSheet.getLastRow()).getValues();
-      var toDelete = [];
-      for (var ai = existingAg.length - 1; ai >= 0; ai--) {
-        if (existingAg[ai][9] === fecha) toDelete.push(ai + 2);
+
+      var cfgData = configSheet.getRange('A2:B' + configSheet.getLastRow()).getValues();
+      var foundKey = false;
+      for (var ci = 1; ci < cfgData.length; ci++) {
+        if (cfgData[ci][0] === 'agentes_' + fecha) {
+          configSheet.getRange(ci + 1, 2).setValue(JSON.stringify(agentes));
+          foundKey = true;
+          break;
+        }
       }
-      toDelete.sort(function(a, b) { return b - a; }).forEach(function(row) {
-        agSheet.deleteRow(row);
-      });
-      agentes.forEach(function(ag) {
-        agSheet.appendRow([
-          ag.rut || '',
-          ag.nombre || '',
-          ag.rol || '',
-          ag.turno ? ag.turno.entradaAMPM || '' : '',
-          ag.turno ? ag.turno.salidaAMPM || '' : '',
-          ag.esLATAM ? 'SI' : 'NO',
-          ag.esOLA ? 'SI' : 'NO',
-          ag.esSupervisor ? 'SI' : 'NO',
-          ag.estado || 'presente',
-          ag.horasExtendido || 0,
-          fecha
-        ]);
-      });
+      if (!foundKey) {
+        configSheet.appendRow(['agentes_' + fecha, JSON.stringify(agentes)]);
+      }
       return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Agentes guardados' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
     if (action === 'saveVueloTurno') {
-      var vlSheet = planSs.getSheetByName('VUELOS_TURNO');
-      if (!vlSheet) {
-        vlSheet = planSs.insertSheet('VUELOS_TURNO');
-        vlSheet.getRange(1, 1, 1, 10).setValues([[
-          'ID', 'Fecha', 'Tipo', 'Número', 'Hora', 'PAX', 'WCHC', 'Estado', 'Es Full Service', 'Aerolinea'
-        ]]);
-      }
       var vuelo = body.vuelo || {};
-      var existingVl = vlSheet.getRange('A2:J' + vlSheet.getLastRow()).getValues();
-      var foundVl = false;
-      for (var vi = 1; vi < existingVl.length; vi++) {
-        if (existingVl[vi][0] === vuelo.id) {
-          vlSheet.getRange(vi + 1, 1, 1, 10).setValues([[
-            vuelo.id || '',
-            vuelo.fecha || '',
-            vuelo.tipo || '',
-            vuelo.numero || '',
-            vuelo.hora || '',
-            vuelo.pax || 0,
-            vuelo.wchc || 0,
-            vuelo.estado || 'pendiente',
-            vuelo.esFullService ? 'SI' : 'NO',
-            vuelo.aerolinea || ''
-          ]]);
-          foundVl = true;
+      var fecha = vuelo.fecha || '';
+
+      var cfgData2 = configSheet.getRange('A2:B' + configSheet.getLastRow()).getValues();
+      var vuelosKey = 'vuelos_' + fecha;
+      var vuelosList = [];
+      var foundVlKey = false;
+      for (var vi = 1; vi < cfgData2.length; vi++) {
+        if (cfgData2[vi][0] === vuelosKey) {
+          try { vuelosList = JSON.parse(cfgData2[vi][1] || '[]'); } catch (e) { vuelosList = []; }
+          foundVlKey = true;
           break;
         }
       }
-      if (!foundVl) {
-        vlSheet.appendRow([
-          vuelo.id || '',
-          vuelo.fecha || '',
-          vuelo.tipo || '',
-          vuelo.numero || '',
-          vuelo.hora || '',
-          vuelo.pax || 0,
-          vuelo.wchc || 0,
-          vuelo.estado || 'pendiente',
-          vuelo.esFullService ? 'SI' : 'NO',
-          vuelo.aerolinea || ''
-        ]);
+
+      var existingIdx = -1;
+      for (var ei = 0; ei < vuelosList.length; ei++) {
+        if (vuelosList[ei].id === vuelo.id) { existingIdx = ei; break; }
+      }
+      if (existingIdx >= 0) {
+        vuelosList[existingIdx] = vuelo;
+      } else {
+        vuelosList.push(vuelo);
+      }
+
+      if (foundVlKey) {
+        for (var vj = 1; vj < cfgData2.length; vj++) {
+          if (cfgData2[vj][0] === vuelosKey) {
+            configSheet.getRange(vj + 1, 2).setValue(JSON.stringify(vuelosList));
+            break;
+          }
+        }
+      } else {
+        configSheet.appendRow([vuelosKey, JSON.stringify(vuelosList)]);
       }
       return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Vuelo guardado' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
     if (action === 'saveAsignacion') {
-      var asigSheet = planSs.getSheetByName('ASIGNACIONES_TURNO');
-      if (!asigSheet) {
-        asigSheet = planSs.insertSheet('ASIGNACIONES_TURNO');
-        asigSheet.getRange(1, 1, 1, 8).setValues([[
-          'ID', 'Fecha', 'Agente RUT', 'Vuelo ID', 'Tipo', 'Inicio', 'Fin', 'Estado'
-        ]]);
-      }
       var asig = body.asignacion || {};
-      asigSheet.appendRow([
-        asig.id || '',
-        asig.fecha || '',
-        asig.agenteRut || '',
-        asig.vueloId || '',
-        asig.tipo || '',
-        asig.inicio || '',
-        asig.fin || '',
-        asig.estado || 'activa'
-      ]);
+      var fecha = asig.fecha || '';
+
+      var cfgData3 = configSheet.getRange('A2:B' + configSheet.getLastRow()).getValues();
+      var asigKey = 'asignaciones_' + fecha;
+      var asigList = [];
+      var foundAsigKey = false;
+      for (var ai = 1; ai < cfgData3.length; ai++) {
+        if (cfgData3[ai][0] === asigKey) {
+          try { asigList = JSON.parse(cfgData3[ai][1] || '[]'); } catch (e) { asigList = []; }
+          foundAsigKey = true;
+          break;
+        }
+      }
+
+      asigList.push(asig);
+
+      if (foundAsigKey) {
+        for (var aj = 1; aj < cfgData3.length; aj++) {
+          if (cfgData3[aj][0] === asigKey) {
+            configSheet.getRange(aj + 1, 2).setValue(JSON.stringify(asigList));
+            break;
+          }
+        }
+      } else {
+        configSheet.appendRow([asigKey, JSON.stringify(asigList)]);
+      }
       return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Asignación guardada' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
     if (action === 'clearTurno') {
       var fecha = body.fecha || '';
-      var sheetsToClear = ['AGENTES_TURNO', 'VUELOS_TURNO', 'ASIGNACIONES_TURNO'];
-      var cleared = [];
-      sheetsToClear.forEach(function(sn) {
-        var sh = planSs.getSheetByName(sn);
-        if (sh && sh.getLastRow() > 1) {
-          var sd = sh.getRange('A2:Z' + sh.getLastRow()).getValues();
-          for (var ci = sd.length - 1; ci >= 0; ci--) {
-            if (sd[ci][0] === fecha || sd[ci][1] === fecha) {
-              sh.deleteRow(ci + 2);
-              cleared.push(sn);
-            }
-          }
+      var cfgData4 = configSheet.getRange('A2:B' + configSheet.getLastRow()).getValues();
+      var keysToDelete = ['agentes_' + fecha, 'vuelos_' + fecha, 'asignaciones_' + fecha];
+      for (var di = cfgData4.length - 1; di >= 0; di--) {
+        if (keysToDelete.indexOf(cfgData4[di][0]) >= 0) {
+          configSheet.deleteRow(di + 2);
         }
-      });
-      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Turno limpiado', cleared: cleared }))
+      }
+      return ContentService.createTextOutput(JSON.stringify({ success: true, message: 'Turno limpiado' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -412,12 +390,11 @@ function doPost(e) {
 function doGet(e) {
   try {
     var flightSs = getFlightSpreadsheet();
-    var planSs = getPlanSpreadsheet();
     var action = e.parameter.action;
 
     if (action === 'getDotacion') {
       var fecha = e.parameter.fecha;
-      var dotacionSheet = planSs.getSheetByName('DOTACION');
+      var dotacionSheet = flightSs.getSheetByName('DOTACION');
       if (!dotacionSheet || !fecha) {
         return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
           .setMimeType(ContentService.MimeType.JSON);
@@ -530,7 +507,7 @@ function doGet(e) {
     }
 
     if (action === 'getReportes') {
-      var repSheet = planSs.getSheetByName('REPORTES');
+      var repSheet = flightSs.getSheetByName('REPORTES');
       if (!repSheet || repSheet.getLastRow() === 0) {
         return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
           .setMimeType(ContentService.MimeType.JSON);
@@ -552,7 +529,7 @@ function doGet(e) {
       var fecha = e.parameter.fecha;
       var ausentes = [];
       if (fecha) {
-        var ctrlSheet = planSs.getSheetByName('CONTROL');
+        var ctrlSheet = flightSs.getSheetByName('CONTROL');
         if (ctrlSheet && ctrlSheet.getLastRow() > 1) {
           var ctrlData = ctrlSheet.getDataRange().getValues();
           for (var q = 1; q < ctrlData.length; q++) {
@@ -571,7 +548,7 @@ function doGet(e) {
       var fecha = e.parameter.fecha;
       var sinTica = [];
       if (fecha) {
-        var ctrlSheet2 = planSs.getSheetByName('CONTROL');
+        var ctrlSheet2 = flightSs.getSheetByName('CONTROL');
         if (ctrlSheet2 && ctrlSheet2.getLastRow() > 1) {
           var ctrlData2 = ctrlSheet2.getDataRange().getValues();
           for (var r = 1; r < ctrlData2.length; r++) {
@@ -586,66 +563,45 @@ function doGet(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
-    // ── CONTROL AGENTES GET ──────────────────────────────────
-    if (action === 'getAgentesTurno') {
-      var fecha = e.parameter.fecha;
-      var agSheet = planSs.getSheetByName('AGENTES_TURNO');
-      if (!agSheet || !fecha) {
+    // ── CONTROL AGENTES GET (desde CONFIG del spreadsheet de vuelos) ──
+    var configSheet = flightSs.getSheetByName('CONFIG');
+    if (!configSheet || configSheet.getLastRow() === 0) {
+      if (action === 'getAgentesTurno' || action === 'getVuelosTurno' || action === 'getAsignacionesTurno') {
         return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      var agData = agSheet.getDataRange().getValues();
-      var agHeaders = agData[0];
-      var agentes = agData.slice(1).map(function(row) {
-        var obj = {};
-        agHeaders.forEach(function(h, i) {
-          obj[h] = row[i] !== undefined ? row[i] : '';
-        });
-        return obj;
-      }).filter(function(a) { return a.Fecha === fecha; });
-      return ContentService.createTextOutput(JSON.stringify({ success: true, data: agentes }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
+    } else {
+      var cfgData = configSheet.getRange('A2:B' + configSheet.getLastRow()).getValues();
+      var getKey = function(keyName) {
+        for (var ki = 0; ki < cfgData.length; ki++) {
+          if (cfgData[ki][0] === keyName) {
+            try { return JSON.parse(cfgData[ki][1] || '[]'); } catch (e) { return []; }
+          }
+        }
+        return [];
+      };
 
-    if (action === 'getVuelosTurno') {
-      var fecha = e.parameter.fecha;
-      var vlSheet = planSs.getSheetByName('VUELOS_TURNO');
-      if (!vlSheet || !fecha) {
-        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+      if (action === 'getAgentesTurno') {
+        var fecha = e.parameter.fecha;
+        var agentes = getKey('agentes_' + fecha);
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: agentes }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      var vlData = vlSheet.getDataRange().getValues();
-      var vlHeaders = vlData[0];
-      var vuelos = vlData.slice(1).map(function(row) {
-        var obj = {};
-        vlHeaders.forEach(function(h, i) {
-          obj[h] = row[i] !== undefined ? row[i] : '';
-        });
-        return obj;
-      }).filter(function(v) { return v.Fecha === fecha; });
-      vuelos.sort(function(a, b) { return (a.Hora || '').localeCompare(b.Hora || ''); });
-      return ContentService.createTextOutput(JSON.stringify({ success: true, data: vuelos }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
 
-    if (action === 'getAsignacionesTurno') {
-      var fecha = e.parameter.fecha;
-      var asigSheet = planSs.getSheetByName('ASIGNACIONES_TURNO');
-      if (!asigSheet || !fecha) {
-        return ContentService.createTextOutput(JSON.stringify({ success: true, data: [] }))
+      if (action === 'getVuelosTurno') {
+        var fecha = e.parameter.fecha;
+        var vuelos = getKey('vuelos_' + fecha);
+        vuelos.sort(function(a, b) { return (a.hora || '').localeCompare(b.hora || ''); });
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: vuelos }))
           .setMimeType(ContentService.MimeType.JSON);
       }
-      var asigData = asigSheet.getDataRange().getValues();
-      var asigHeaders = asigData[0];
-      var asignaciones = asigData.slice(1).map(function(row) {
-        var obj = {};
-        asigHeaders.forEach(function(h, i) {
-          obj[h] = row[i] !== undefined ? row[i] : '';
-        });
-        return obj;
-      }).filter(function(a) { return a.Fecha === fecha; });
-      return ContentService.createTextOutput(JSON.stringify({ success: true, data: asignaciones }))
-        .setMimeType(ContentService.MimeType.JSON);
+
+      if (action === 'getAsignacionesTurno') {
+        var fecha = e.parameter.fecha;
+        var asignaciones = getKey('asignaciones_' + fecha);
+        return ContentService.createTextOutput(JSON.stringify({ success: true, data: asignaciones }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
     }
 
     var sheet = flightSs.getSheetByName('DATABASE') || flightSs.getSheets()[0];

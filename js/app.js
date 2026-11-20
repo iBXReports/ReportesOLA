@@ -854,53 +854,40 @@ let ctrlFecha = new Date().toISOString().slice(0, 10);
 let ctrlTimerInterval = null;
 
 function parseTurnoM(turnoStr) {
-  if (!turnoStr || turnoStr.length < 5) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'N', duracion: 24 };
-  const s = turnoStr.replace(/[^0-9]/g, '');
-  if (s.length < 4) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'N', duracion: 24 };
-
+  if (!turnoStr || turnoStr.length < 5) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'M', duracion: 24, raw: turnoStr || '' };
   const tipo = turnoStr.charAt(0).toUpperCase();
-  const hh = parseInt(s.substring(0, 2));
-  const mm = parseInt(s.substring(2, 4));
+  const s = turnoStr.replace(/[^0-9]/g, '');
+  if (s.length < 4) return { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: tipo, duracion: 24, raw: turnoStr };
 
-  let entrada, salida, entradaAMPM, salidaAMPM, duracion;
+  const hhE = parseInt(s.substring(0, 2), 10);
+  const hhS = parseInt(s.substring(2, 4), 10);
 
-  if (tipo === 'N') {
-    // N0110 = noche, ingresa 01:00 AM, sale 10:00 AM (siguiente día)
-    entrada = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    salida = String(hh + 9).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    entradaAMPM = String(hh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' AM';
-    const sH = hh + 9;
-    salidaAMPM = String(sH % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sH >= 12 && sH < 24 ? ' AM' : ' PM');
-    duracion = 9;
-  } else if (tipo === 'M') {
-    // M0413 = mañana, ingresa 04:00 AM, sale 13:00 PM (mismo día)
-    entrada = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    const sH = hh + 9;
-    salida = String(sH).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    entradaAMPM = String(hh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' AM';
-    salidaAMPM = String(sH % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sH >= 12 && sH < 24 ? ' PM' : ' AM');
-    duracion = 9;
-  } else if (tipo === 'T') {
-    // T1222 = tarde, ingresa 12:00 PM, sale 22:00 PM (mismo día)
-    const eh = hh === 12 ? 12 : hh;
-    const sh = hh + 10;
-    entrada = String(eh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    salida = String(sh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    entradaAMPM = String(eh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' PM';
-    const sH12 = sh % 12 || 12;
-    salidaAMPM = String(sH12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sh >= 12 && sh < 24 ? ' PM' : ' AM');
-    duracion = 10;
-  } else {
-    // Fallback: asumir mañana
-    entrance = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    salida = String(hh + 9).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-    entradaAMPM = String(hh % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ' AM';
-    const sH = hh + 9;
-    salidaAMPM = String(sH % 12 || 12).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + (sH >= 12 && sH < 24 ? ' PM' : ' AM');
-    duracion = 9;
+  const entrada = String(hhE).padStart(2, '0') + ':00';
+  const salida = String(hhS).padStart(2, '0') + ':00';
+
+  function fmt(h) {
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    let h12 = h % 12;
+    if (h12 === 0) h12 = 12;
+    return String(h12).padStart(2, '0') + ':00 ' + ampm;
   }
 
-  return { entrada, salida, entradaAMPM, salidaAMPM, tipo: tipo, duracion: duracion };
+  let duracion;
+  if (hhS > hhE) {
+    duracion = hhS - hhE;
+  } else {
+    duracion = (24 - hhE) + hhS;
+  }
+
+  return {
+    entrada: entrada,
+    salida: salida,
+    entradaAMPM: fmt(hhE),
+    salidaAMPM: fmt(hhS),
+    tipo: tipo,
+    duracion: duracion,
+    raw: turnoStr
+  };
 }
 
 function openPasteAgentesModal() {
@@ -1037,20 +1024,23 @@ function loadControlAgentesTurno() {
 
     if (agResult.success && agResult.data) {
       ctrlAgentes = agResult.data.map(function(ag) {
+        var turno = ag.turno || parseTurnoM(ag['Turno Entrada'] || ag.raw || '');
+        if (!turno || !turno.entrada) turno = { entrada: '00:00', salida: '23:59', entradaAMPM: '12:00 AM', salidaAMPM: '11:59 PM', tipo: 'M', duracion: 24 };
         return {
-          rut: ag['RUT'] || '',
-          nombre: ag['Nombre'] || '',
-          rol: ag['Rol'] || '',
-          turno: parseTurnoM(ag['Turno Entrada'] || ''),
-          estado: ag['Estado'] || 'presente',
-          esLATAM: ag['Es LATAM'] === 'SI',
-          esOLA: ag['Es OLA'] === 'SI',
-          esSupervisor: ag['Es Supervisor'] === 'SI',
-          vueloAsignado: null,
-          tipoAsignacion: null,
-          colacionTimer: null,
-          libreTimer: null,
-          horasExtendido: parseInt(ag['Horas Extendido']) || 0
+          rut: ag.rut || ag['RUT'] || '',
+          nombre: ag.nombre || ag['Nombre'] || '',
+          rol: ag.rol || ag['Rol'] || '',
+          turno: turno,
+          estado: ag.estado || ag['Estado'] || 'presente',
+          esLATAM: ag.esLATAM !== undefined ? ag.esLATAM : (ag['Es LATAM'] === 'SI'),
+          esOLA: ag.esOLA !== undefined ? ag.esOLA : (ag['Es OLA'] === 'SI'),
+          esSupervisor: ag.esSupervisor !== undefined ? ag.esSupervisor : (ag['Es Supervisor'] === 'SI'),
+          vueloAsignado: ag.vueloAsignado || null,
+          tipoAsignacion: ag.tipoAsignacion || null,
+          colacionTimer: ag.colacionTimer || null,
+          libreTimer: ag.libreTimer || null,
+          horasExtendido: parseInt(ag.horasExtendido || ag['Horas Extendido']) || 0,
+          colacionProgramada: ag.colacionProgramada || null
         };
       });
     }
@@ -1058,16 +1048,16 @@ function loadControlAgentesTurno() {
     if (vlResult.success && vlResult.data) {
       ctrlVuelos = vlResult.data.map(function(v) {
         return {
-          id: v['ID'] || '',
-          fecha: v['Fecha'] || '',
-          tipo: v['Tipo'] || '',
-          numero: v['Número'] || '',
-          hora: v['Hora'] || '',
-          pax: parseInt(v['PAX']) || 0,
-          wchc: parseInt(v['WCHC']) || 0,
-          estado: v['Estado'] || 'pendiente',
-          esFullService: v['Es Full Service'] === 'SI',
-          aerolinea: v['Aerolinea'] || ''
+          id: v.id || v['ID'] || '',
+          fecha: v.fecha || v['Fecha'] || '',
+          tipo: v.tipo || v['Tipo'] || '',
+          numero: v.numero || v['Número'] || '',
+          hora: v.hora || v['Hora'] || '',
+          pax: parseInt(v.pax || v['PAX']) || 0,
+          wchc: parseInt(v.wchc || v['WCHC']) || 0,
+          estado: v.estado || v['Estado'] || 'pendiente',
+          esFullService: v.esFullService !== undefined ? v.esFullService : (v['Es Full Service'] === 'SI'),
+          aerolinea: v.aerolinea || v['Aerolinea'] || ''
         };
       });
     }
@@ -1186,9 +1176,15 @@ function estaEnTurno(agente, hora) {
   const minutos = h * 60 + m;
   const [he, me] = agente.turno.entrada.split(':').map(Number);
   const [hs, ms] = agente.turno.salida.split(':').map(Number);
-  const entradaMin = he * 60 + me;
-  const salidaMin = hs * 60 + ms;
-  if (salidaMin < entradaMin) return minutos >= entradaMin || minutos <= salidaMin;
+  let entradaMin = he * 60 + me;
+  let salidaMin = hs * 60 + ms;
+  if (agente.horasExtendido > 0) {
+    salidaMin += agente.horasExtendido * 60;
+  }
+  if (salidaMin < entradaMin) {
+    // Turno nocturno que cruza medianoche
+    return minutos >= entradaMin || minutos <= (salidaMin % (24 * 60));
+  }
   return minutos >= entradaMin && minutos <= salidaMin;
 }
 
@@ -1240,16 +1236,8 @@ function autoAsignarTurno() {
       if (!estaEnTurno(ag, vuelo.hora)) continue;
 
       const esLATAMFlight = vuelo.aerolinea.startsWith('LA');
-      if (esLATAMFlight && !ag.esLATAM && !ag.esOLA) continue;
-      if (!esLATAMFlight && !ag.esOLA && !ag.esLATAM) continue;
-
-      // Verificar horas extendidas: si el agente está extendido, puede tomar vuelos hasta su hora de salida extendida
-      if (ag.horasExtendido > 0) {
-        const [hs, ms] = ag.turno.salida.split(':').map(Number);
-        const salidaExtendida = hs + ag.horasExtendido;
-        const [hv, mv] = vuelo.hora.split(':').map(Number);
-        if (hv > salidaExtendida) continue;
-      }
+      if (esLATAMFlight && !ag.esLATAM) continue;
+      if (!esLATAMFlight && !ag.esOLA) continue;
 
       ag.estado = 'asignado';
       ag.vueloAsignado = vuelo.id;
