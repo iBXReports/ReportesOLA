@@ -64,9 +64,10 @@ function togglePmrFrame() {
 }
 
 // ── Aerolíneas ─────────────────────────────────────────────
-const OFFLINE_AIRLINES = ["DELTA","AIRFRANCE","KLM","AIRCANADA","AVIANCA","AEROLINEAS ARGENTINAS","ARAJET","BOA","BRITISH","COPA","IBERIA","LEVEL","QANTAS"];
+const OFFLINE_AIRLINES = ["DELTA","AIRFRANCE","KLM","AIRCANADA","AVIANCA","AEROLINEAS ARGENTINAS","AEROMEXICO","ARAJET","BOA","BRITISH","COPA","IBERIA","JETSMART","LEVEL","QANTAS"];
 let globalAirlines = [];
 function loadOfflineAirlines() {
+  localStorage.removeItem('cargo_airlines_offline');
   const saved = localStorage.getItem('cargo_airlines_offline');
   if (saved) {
     try { globalAirlines = JSON.parse(saved); } catch(e) { globalAirlines = [...OFFLINE_AIRLINES]; }
