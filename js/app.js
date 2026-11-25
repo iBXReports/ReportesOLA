@@ -218,21 +218,21 @@ function generateConsolidadoTexto(payload) {
   txt += `⏰ETA/ETD: ${payload.etaEtd}\n🚪Puerta : ${payload.puerta}\n`;
   txt += `🧑Asistencias: # de asistencias ${asistidos.length} / ${totalPax}\nPAX (LISTADO DE PASAJEROS):\n`;
   if (!payload.pasajeros.length) txt += "SIN PASAJEROS REGISTRADOS\n";
-  else payload.pasajeros.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} (${p.estado}) - ATENDIDO POR: ${p.agente||'SIN ASIGNAR'}\n`; });
+  else payload.pasajeros.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} (${p.estado}) - AG: ${p.agente||'SIN ASIGNAR'}\n`; });
 
   if (noManif.length > 0) {
     txt += `👤No manifestados: # de asistencias ${noManif.length}\n-(LISTADO DE PAX) NO MANIFESTADOS-\n`;
-    noManif.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - ATENDIDO POR: ${p.agente||'SIN ASIGNAR'}\n`; });
+    noManif.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - AG: ${p.agente||'SIN ASIGNAR'}\n`; });
     txt += "❌ NO REQUIEREN ASISTENCIA\n";
-    if (noReq.length) noReq.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - ATENDIDO POR: ${p.agente||'SIN ASIGNAR'}\n`; });
+    if (noReq.length) noReq.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - AG: ${p.agente||'SIN ASIGNAR'}\n`; });
     else txt += "SIN PAX EN ESTA CATEGORÍA\n";
   } else {
     txt += "❌ NO REQUIEREN ASISTENCIA\n";
-    if (noReq.length) noReq.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - ATENDIDO POR: ${p.agente||'SIN ASIGNAR'}\n`; });
+    if (noReq.length) noReq.forEach((p,i) => { txt += `${i+1}.- ${p.nombre} - ${p.asistencia} - AG: ${p.agente||'SIN ASIGNAR'}\n`; });
     else txt += "-SIN PAX-\n";
   }
 
-  txt += `\n🛎️ LIST@ PARA PROXIMAS ASIGNACIONES!`;
+  txt += `\n🛎️ ESTOY LIBRE !`;
   return txt;
 }
 
